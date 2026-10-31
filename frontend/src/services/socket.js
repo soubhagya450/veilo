@@ -1,6 +1,7 @@
 import { io } from "socket.io-client";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
+const RAW_SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "";
+const SOCKET_URL = RAW_SOCKET_URL ? RAW_SOCKET_URL.replace(/\/+$/, "") : window.location.origin;
 
 export const socket = io(SOCKET_URL, {
   autoConnect: false,

@@ -12,13 +12,14 @@ class Config:
     SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", "3600"))
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
-    # Allowed CORS / Socket origins
-    _frontend_origins = os.getenv(
-        "FRONTEND_ORIGIN", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
-    )
-    CORS_ALLOWED_ORIGINS = [
-        origin.strip() for origin in _frontend_origins.split(",") if origin.strip()
-    ]
+    # Allowed CORS / Socket origins (defaults to * so any Vercel domain connects seamlessly)
+    _frontend_origins = os.getenv("FRONTEND_ORIGIN", "*").strip()
+    if not _frontend_origins or _frontend_origins == "*":
+        CORS_ALLOWED_ORIGINS = ["*"]
+    else:
+        CORS_ALLOWED_ORIGINS = [
+            origin.strip() for origin in _frontend_origins.split(",") if origin.strip()
+        ]
 
 
 class DevelopmentConfig(Config):
