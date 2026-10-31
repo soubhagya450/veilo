@@ -50,6 +50,17 @@ export function useChat() {
   }, []);
 
   useEffect(() => {
+    function onConnect() {
+      setErrorMessage(null);
+    }
+
+    function onConnectError() {
+      // Informative notice for cloud cold-starts
+      setErrorMessage(
+        "Connecting to Veilo backend server... If on Render free tier, waking up takes 30-45 seconds."
+      );
+    }
+
     function onSearching() {
       setChatStatus("searching");
       setMessages([]);
@@ -65,6 +76,7 @@ export function useChat() {
       setRoomType("private");
       setChatStatus("waiting_for_friend");
       setMessages([]);
+      setErrorMessage(null);
     }
 
     function onMatched(data) {
@@ -74,6 +86,7 @@ export function useChat() {
       if (data.roomCode) setRoomCode(data.roomCode);
       setChatStatus("connected");
       setIsPartnerTyping(false);
+      setErrorMessage(null);
       setMessages([
         {
           id: "sys-init",
@@ -90,6 +103,7 @@ export function useChat() {
       setPartnerAlias(data.partnerAlias || "Friend");
       setChatStatus("connected");
       setIsPartnerTyping(false);
+      setErrorMessage(null);
       setMessages((prev) => [
         ...prev,
         {
@@ -165,10 +179,12 @@ export function useChat() {
 
     function onErrorEvent(err) {
       setErrorMessage(err.message || "An error occurred.");
-      const t = setTimeout(() => setErrorMessage(null), 4000);
+      const t = setTimeout(() => setErrorMessage(null), 5000);
       return () => clearTimeout(t);
     }
 
+    socket.on("connect", onConnect);
+    socket.on("connect_error", onConnectError);
     socket.on("searching", onSearching);
     socket.on("search_cancelled", onSearchCancelled);
     socket.on("room_created", onRoomCreated);
@@ -181,6 +197,8 @@ export function useChat() {
     socket.on("error_event", onErrorEvent);
 
     return () => {
+      socket.off("connect", onConnect);
+      socket.off("connect_error", onConnectError);
       socket.off("searching", onSearching);
       socket.off("search_cancelled", onSearchCancelled);
       socket.off("room_created", onRoomCreated);
@@ -196,6 +214,16 @@ export function useChat() {
 
   const findStranger = useCallback(() => {
     ensureConnected();
+    if (!socket.connected) {
+      setErrorMessage("Connecting to server... Please wait a moment.");
+      socket.once("connect", () => {
+        setErrorMessage(null);
+        setChatStatus("searching");
+        setMessages([]);
+        socket.emit("find_stranger");
+      });
+      return;
+    }
     setErrorMessage(null);
     setChatStatus("searching");
     setMessages([]);
@@ -209,17 +237,43 @@ export function useChat() {
 
   const createPrivateRoom = useCallback(() => {
     ensureConnected();
+    if (!socket.connected) {
+      setErrorMessage(
+        "Connecting to Veilo backend server... If on Render free tier, waking up takes 30-45 seconds."
+      );
+      socket.once("connect", () => {
+        setErrorMessage(null);
+        setMessages([]);
+        socket.emit("create_room");
+      });
+      return;
+    }
     setErrorMessage(null);
     setMessages([]);
     socket.emit("create_room");
   }, [ensureConnected]);
 
-  const joinPrivateRoom = useCallback((code) => {
-    ensureConnected();
-    setErrorMessage(null);
-    setMessages([]);
-    socket.emit("join_room_code", { code: code.trim().toUpperCase() });
-  }, [ensureConnected]);
+  const joinPrivateRoom = useCallback(
+    (code) => {
+      ensureConnected();
+      const cleanCode = code ? code.trim().toUpperCase() : "";
+      if (!socket.connected) {
+        setErrorMessage(
+          "Connecting to Veilo backend server... If on Render free tier, waking up takes 30-45 seconds."
+        );
+        socket.once("connect", () => {
+          setErrorMessage(null);
+          setMessages([]);
+          socket.emit("join_room_code", { code: cleanCode });
+        });
+        return;
+      }
+      setErrorMessage(null);
+      setMessages([]);
+      socket.emit("join_room_code", { code: cleanCode });
+    },
+    [ensureConnected]
+  );
 
   const sendMessage = useCallback((text) => {
     if (!text || !text.trim()) return;

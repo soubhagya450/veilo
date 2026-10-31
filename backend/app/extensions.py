@@ -9,11 +9,11 @@ logger = logging.getLogger("veilo")
 
 # Socket.IO instance
 socketio = SocketIO(
-    cors_allowed_origins=[],
+    cors_allowed_origins="*",
     max_http_buffer_size=10_000,
     ping_interval=20,
     ping_timeout=25,
-    async_mode="threading",
+    async_mode=None,
 )
 
 
@@ -427,9 +427,10 @@ def init_extensions(app):
     token_serializer = URLSafeTimedSerializer(app.config["SECRET_KEY"])
 
     # Configure Socket.IO origins
-    allowed_origins = app.config.get("CORS_ALLOWED_ORIGINS", ["*"])
-    socketio.cors_allowed_origins = allowed_origins
-    socketio.init_app(app)
+    allowed_origins = app.config.get("CORS_ALLOWED_ORIGINS", "*")
+    if isinstance(allowed_origins, list) and len(allowed_origins) == 1 and allowed_origins[0] == "*":
+        allowed_origins = "*"
+    socketio.init_app(app, cors_allowed_origins=allowed_origins)
 
     # Initialize storage with fault-tolerant resilient proxy
     redis_url = app.config.get("REDIS_URL", "").strip()

@@ -3,14 +3,21 @@ import { io } from "socket.io-client";
 const RAW_SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "";
 const SOCKET_URL = RAW_SOCKET_URL ? RAW_SOCKET_URL.replace(/\/+$/, "") : window.location.origin;
 
+/**
+ * Socket.IO client instance configured for cloud resilience.
+ * Starts with HTTP long-polling to wake up cold-starting cloud instances (like Render),
+ * then automatically upgrades to WebSocket protocol once the connection is established.
+ */
 export const socket = io(SOCKET_URL, {
   autoConnect: false,
-  transports: ["websocket", "polling"],
+  transports: ["polling", "websocket"],
+  upgrade: true,
   withCredentials: false,
   reconnection: true,
-  reconnectionAttempts: 5,
+  reconnectionAttempts: 15,
   reconnectionDelay: 1000,
-  timeout: 10000,
+  reconnectionDelayMax: 5000,
+  timeout: 20000,
 });
 
 /**
