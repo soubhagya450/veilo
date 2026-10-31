@@ -299,6 +299,10 @@ class ResilientRedisProxy:
             return False
         try:
             import redis
+            extra_kwargs = {}
+            if self._redis_url.startswith("rediss://"):
+                extra_kwargs["ssl_cert_reqs"] = None
+
             client = redis.from_url(
                 self._redis_url,
                 decode_responses=True,
@@ -306,6 +310,7 @@ class ResilientRedisProxy:
                 socket_timeout=3,
                 retry_on_timeout=True,
                 health_check_interval=15,
+                **extra_kwargs,
             )
             client.ping()
             with self._lock:
@@ -356,12 +361,17 @@ class ResilientRedisProxy:
             time.sleep(self._reconnect_interval)
             try:
                 import redis
+                extra_kwargs = {}
+                if self._redis_url.startswith("rediss://"):
+                    extra_kwargs["ssl_cert_reqs"] = None
+
                 client = redis.from_url(
                     self._redis_url,
                     decode_responses=True,
                     socket_connect_timeout=2,
                     socket_timeout=2,
                     retry_on_timeout=True,
+                    **extra_kwargs,
                 )
                 client.ping()
                 with self._lock:
