@@ -1,0 +1,34 @@
+# Environments & Dependencies
+node_modules/
+**/node_modules/
+venv/
+**/venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing & Cache
+.pytest_cache/
+**/.pytest_cache/
+.vite-temp/
+**/.vite-temp/
+
+# Build artifacts
+dist/
+**/dist/
+dist-ssr/
+**/dist-ssr/
+
+# Local Environment Variables
+.env
+**/.env
+*.local
+!.env.example
+!**/.env.example
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db
+
