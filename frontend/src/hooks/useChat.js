@@ -52,10 +52,24 @@ export function useChat() {
   useEffect(() => {
     function onConnect() {
       setErrorMessage(null);
+      // On reconnect, auto re-attach to active private room if user was waiting or connected
+      try {
+        const savedRoomStr = sessionStorage.getItem("veilo_active_room");
+        if (savedRoomStr) {
+          const saved = JSON.parse(savedRoomStr);
+          if (saved?.roomId || saved?.roomCode) {
+            socket.emit("reconnect_room", {
+              roomId: saved.roomId,
+              roomCode: saved.roomCode,
+            });
+          }
+        }
+      } catch {
+        // Ignore session parse error
+      }
     }
 
     function onConnectError() {
-      // Informative notice for cloud cold-starts
       setErrorMessage(
         "Connecting to Veilo backend server... If on Render free tier, waking up takes 30-45 seconds."
       );
@@ -77,6 +91,15 @@ export function useChat() {
       setChatStatus("waiting_for_friend");
       setMessages([]);
       setErrorMessage(null);
+      sessionStorage.setItem(
+        "veilo_active_room",
+        JSON.stringify({
+          roomId: data.roomId,
+          roomCode: data.roomCode,
+          roomType: "private",
+          status: "waiting",
+        })
+      );
     }
 
     function onMatched(data) {
@@ -97,6 +120,19 @@ export function useChat() {
         },
       ]);
       playChime("matched");
+
+      if (data.roomType === "private") {
+        sessionStorage.setItem(
+          "veilo_active_room",
+          JSON.stringify({
+            roomId: data.roomId,
+            roomCode: data.roomCode,
+            roomType: "private",
+            partnerAlias: data.partnerAlias,
+            status: "connected",
+          })
+        );
+      }
     }
 
     function onPartnerJoined(data) {
@@ -115,6 +151,17 @@ export function useChat() {
         },
       ]);
       playChime("matched");
+
+      sessionStorage.setItem(
+        "veilo_active_room",
+        JSON.stringify({
+          roomId: data.roomId,
+          roomCode: data.roomCode,
+          roomType: "private",
+          partnerAlias: data.partnerAlias,
+          status: "connected",
+        })
+      );
     }
 
     function onReceiveMessage(msg) {
@@ -147,9 +194,54 @@ export function useChat() {
       }
     }
 
+    function onPartnerAway(data) {
+      // Temporary pause (e.g. mobile screen lock / app switch), NOT ended!
+      setIsPartnerTyping(false);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `sys-away-${Date.now()}`,
+          text: data?.message || "Partner connection paused... waiting for them to return.",
+          isSystem: true,
+          systemType: "info",
+          timestamp: Date.now(),
+        },
+      ]);
+    }
+
+    function onPartnerBack(data) {
+      // Partner returned and re-attached!
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `sys-back-${Date.now()}`,
+          text: `${data?.partnerAlias || partnerAlias || "Friend"} reconnected! Conversation restored.`,
+          isSystem: true,
+          systemType: "info",
+          timestamp: Date.now(),
+        },
+      ]);
+      playChime("matched");
+    }
+
+    function onReconnected(data) {
+      setRoomId(data.roomId);
+      if (data.roomCode) setRoomCode(data.roomCode);
+      setRoomType(data.roomType || "private");
+
+      if (data.hasPartner) {
+        setPartnerAlias(data.partnerAlias);
+        setChatStatus("connected");
+      } else if (data.waiting) {
+        setChatStatus("waiting_for_friend");
+      }
+      setErrorMessage(null);
+    }
+
     function onPartnerLeft(data) {
       setIsPartnerTyping(false);
       setChatStatus("partner_left");
+      sessionStorage.removeItem("veilo_active_room");
       const reasonText =
         data?.reason === "blocked"
           ? "You have blocked this partner."
@@ -175,6 +267,7 @@ export function useChat() {
       setRoomId(null);
       setPartnerAlias(null);
       setRoomCode(null);
+      sessionStorage.removeItem("veilo_active_room");
     }
 
     function onErrorEvent(err) {
@@ -192,6 +285,9 @@ export function useChat() {
     socket.on("partner_joined", onPartnerJoined);
     socket.on("receive_message", onReceiveMessage);
     socket.on("partner_typing", onPartnerTyping);
+    socket.on("partner_away", onPartnerAway);
+    socket.on("partner_back", onPartnerBack);
+    socket.on("reconnected", onReconnected);
     socket.on("partner_left", onPartnerLeft);
     socket.on("chat_ended", onChatEnded);
     socket.on("error_event", onErrorEvent);
@@ -206,6 +302,9 @@ export function useChat() {
       socket.off("partner_joined", onPartnerJoined);
       socket.off("receive_message", onReceiveMessage);
       socket.off("partner_typing", onPartnerTyping);
+      socket.off("partner_away", onPartnerAway);
+      socket.off("partner_back", onPartnerBack);
+      socket.off("reconnected", onReconnected);
       socket.off("partner_left", onPartnerLeft);
       socket.off("chat_ended", onChatEnded);
       socket.off("error_event", onErrorEvent);
@@ -293,6 +392,7 @@ export function useChat() {
     setRoomCode(null);
     setMessages([]);
     setIsPartnerTyping(false);
+    sessionStorage.removeItem("veilo_active_room");
   }, []);
 
   const blockPartner = useCallback(() => {
@@ -303,6 +403,7 @@ export function useChat() {
     setRoomCode(null);
     setMessages([]);
     setIsPartnerTyping(false);
+    sessionStorage.removeItem("veilo_active_room");
   }, []);
 
   const reportPartner = useCallback((reason) => {
@@ -313,6 +414,7 @@ export function useChat() {
     setRoomCode(null);
     setMessages([]);
     setIsPartnerTyping(false);
+    sessionStorage.removeItem("veilo_active_room");
   }, []);
 
   const nextStranger = useCallback(() => {

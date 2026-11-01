@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Copy, Check, Share2, Shield, Users, Clock } from "lucide-react";
+import { Copy, Check, Share2, Shield, Users, Clock, Send } from "lucide-react";
 import { VeiloIcon } from "./VeiloLogo";
 
 export default function RoomCodeModal({ code, onCancel }) {
@@ -7,6 +7,7 @@ export default function RoomCodeModal({ code, onCancel }) {
   const [copiedLink, setCopiedLink] = useState(false);
 
   const joinUrl = `${window.location.origin}/join?code=${code}`;
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   const handleCopyCode = async () => {
     try {
@@ -25,6 +26,24 @@ export default function RoomCodeModal({ code, onCancel }) {
       setTimeout(() => setCopiedLink(false), 2000);
     } catch {
       // Fallback
+    }
+  };
+
+  const handleShare = async () => {
+    if (canShare) {
+      try {
+        await navigator.share({
+          title: "Join my Veilo private chat",
+          text: `Join my private encrypted chat on Veilo with code: ${code}\nLink: ${joinUrl}`,
+          url: joinUrl,
+        });
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          handleCopyLink();
+        }
+      }
+    } else {
+      handleCopyLink();
     }
   };
 
@@ -49,40 +68,52 @@ export default function RoomCodeModal({ code, onCancel }) {
           {code}
         </div>
 
-        <div className="flex flex-col xs:flex-row items-center gap-2 mt-4 w-full">
-          <button
-            onClick={handleCopyCode}
-            className="w-full flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/80 active:scale-95 text-xs font-semibold text-slate-200 border border-slate-700/60 transition-all cursor-pointer"
-          >
-            {copied ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="text-cyan-400">Copied Code</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copy Code</span>
-              </>
-            )}
-          </button>
+        <div className="flex flex-col gap-2 mt-4 w-full">
+          {canShare && (
+            <button
+              onClick={handleShare}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-98 text-xs font-bold text-white shadow-lg shadow-cyan-500/20 transition-all cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Share Code with Friend (WhatsApp / SMS)</span>
+            </button>
+          )}
 
-          <button
-            onClick={handleCopyLink}
-            className="w-full flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/80 active:scale-95 text-xs font-semibold text-slate-200 border border-slate-700/60 transition-all cursor-pointer"
-          >
-            {copiedLink ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="text-cyan-400">Copied Link</span>
-              </>
-            ) : (
-              <>
-                <Share2 className="w-3.5 h-3.5" />
-                <span>Copy Link</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2 w-full">
+            <button
+              onClick={handleCopyCode}
+              className="w-full flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/80 active:scale-95 text-xs font-semibold text-slate-200 border border-slate-700/60 transition-all cursor-pointer"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-cyan-400">Copied Code</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy Code</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleCopyLink}
+              className="w-full flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/80 active:scale-95 text-xs font-semibold text-slate-200 border border-slate-700/60 transition-all cursor-pointer"
+            >
+              {copiedLink ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-cyan-400">Copied Link</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Copy Link</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -94,6 +125,11 @@ export default function RoomCodeModal({ code, onCancel }) {
         </span>
         Waiting for your friend to enter this code...
       </div>
+
+      {/* Mobile-Friendly Switch App Tip */}
+      <p className="text-[10px] text-slate-400 mt-1">
+        📱 Feel free to switch apps to share. Your room stays open for 30 minutes.
+      </p>
 
       {/* Info Pills */}
       <div className="flex items-center justify-center gap-4 text-[10px] sm:text-[11px] text-slate-400 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-slate-800/60">

@@ -133,12 +133,14 @@ class InMemoryStore:
             return len(self._sets[key])
 
     # Hash methods
-    def hset(self, key: str, mapping: Optional[Dict[str, Any]] = None, **kwargs) -> int:
+    def hset(self, key: str, field: Optional[str] = None, value: Optional[Any] = None, mapping: Optional[Dict[str, Any]] = None, **kwargs) -> int:
         with self._lock:
             self._purge_if_expired(key)
             if key not in self._hashes:
                 self._hashes[key] = {}
             target = dict(mapping or {})
+            if field is not None and value is not None:
+                target[str(field)] = str(value)
             target.update(kwargs)
             count = 0
             for f, v in target.items():

@@ -1,6 +1,6 @@
 import logging
 import secrets
-from flask import request
+from flask import current_app, request
 from flask_socketio import emit, join_room, leave_room
 from app.extensions import socketio, redis_client
 from app.services.cleanup import cleanup_socket, destroy_room
@@ -24,9 +24,6 @@ from app.utils.room_codes import (
 from app.utils.validators import clean_message, validate_report_reason, validate_room_code
 
 logger = logging.getLogger("veilo")
-
-
-from flask import current_app, request
 
 
 def get_client_ip_hash() -> str:
@@ -94,11 +91,27 @@ def handle_connect(auth=None):
 def handle_disconnect():
     """Handle sudden socket disconnect and clean up."""
     sid = request.sid
-    room_id, partner_sid = cleanup_socket(sid)
+    room_id = room_manager.get_room_for_sid(sid)
+    room_data = room_manager.get_room(room_id) if room_id else None
+    room_type = room_data.get("type", "stranger") if room_data else "stranger"
+
+    room_id, partner_sid = cleanup_socket(sid, explicit_leave=False)
     redis_client.delete(f"sid_meta:{sid}")
 
     if partner_sid:
-        emit("partner_left", {"reason": "disconnected"}, to=partner_sid)
+        if room_type == "private":
+            # For private code rooms, notify partner of momentary connection pause,
+            # don't declare the conversation permanently ended!
+            emit(
+                "partner_away",
+                {
+                    "reason": "paused",
+                    "message": "Partner connection paused... waiting to reconnect.",
+                },
+                to=partner_sid,
+            )
+        else:
+            emit("partner_left", {"reason": "disconnected"}, to=partner_sid)
     logger.debug("Socket disconnected: %s", sid[:6])
 
 
@@ -113,8 +126,8 @@ def handle_find_stranger():
         emit("error_event", {"code": "RATE_LIMITED", "message": "Searching too frequently. Please wait."})
         return
 
-    # Clean up from any existing room
-    prev_room, prev_partner = cleanup_socket(sid)
+    # Clean up from any existing room explicitly
+    prev_room, prev_partner = cleanup_socket(sid, explicit_leave=True)
     if prev_partner:
         emit("partner_left", {"reason": "skipped"}, to=prev_partner)
 
@@ -172,8 +185,8 @@ def handle_create_room():
         emit("error_event", {"code": "RATE_LIMITED", "message": "Room creation limit reached. Please wait."})
         return
 
-    # Clean up any active room
-    prev_room, prev_partner = cleanup_socket(sid)
+    # Clean up any active room explicitly
+    prev_room, prev_partner = cleanup_socket(sid, explicit_leave=True)
     if prev_partner:
         emit("partner_left", {"reason": "left"}, to=prev_partner)
 
@@ -216,8 +229,8 @@ def handle_join_room_code(data):
         emit("error_event", {"code": "ROOM_NOT_FOUND", "message": msg})
         return
 
-    # Clean up from any previous room
-    prev_room, prev_partner = cleanup_socket(sid)
+    # Clean up from any previous room explicitly
+    prev_room, prev_partner = cleanup_socket(sid, explicit_leave=True)
     if prev_partner:
         emit("partner_left", {"reason": "left"}, to=prev_partner)
 
@@ -260,6 +273,80 @@ def handle_join_room_code(data):
                 "roomCode": code.upper(),
             },
             to=host_sid,
+        )
+
+
+@socketio.on("reconnect_room")
+def handle_reconnect_room(data):
+    """Re-attach a newly connected or reconnected socket to its existing room."""
+    sid = request.sid
+    if not isinstance(data, dict):
+        return
+
+    room_id = data.get("roomId")
+    code = data.get("roomCode")
+    if not room_id and code:
+        room_id = room_manager.get_room_by_code(code)
+
+    if not room_id:
+        emit("reconnect_failed", {"message": "Room not found or code expired."})
+        return
+
+    room_data = room_manager.get_room(room_id)
+    if not room_data:
+        emit("reconnect_failed", {"message": "Room not found or code expired."})
+        return
+
+    session = get_socket_session(sid)
+    alias = session.get("alias", "Friend")
+    session_id = session.get("session_id", sid)
+
+    success = room_manager.reattach_member(room_id, sid, session_id, alias)
+    if not success:
+        emit("reconnect_failed", {"message": "Could not re-attach to room."})
+        return
+
+    join_room(room_id, sid=sid)
+    partner_sid = room_manager.get_partner_sid(room_id, sid)
+
+    if partner_sid:
+        partner_session = room_manager.get_session_for_sid(partner_sid)
+        partner_alias = partner_session.get("alias", "Friend") if partner_session else "Friend"
+
+        emit(
+            "reconnected",
+            {
+                "roomId": room_id,
+                "roomCode": room_data.get("code", code or ""),
+                "partnerAlias": partner_alias,
+                "yourAlias": alias,
+                "roomType": room_data.get("type", "private"),
+                "hasPartner": True,
+            },
+            to=sid,
+        )
+
+        emit(
+            "partner_back",
+            {
+                "partnerAlias": alias,
+                "message": f"{alias} reconnected.",
+            },
+            to=partner_sid,
+        )
+    else:
+        emit(
+            "reconnected",
+            {
+                "roomId": room_id,
+                "roomCode": room_data.get("code", code or ""),
+                "partnerAlias": None,
+                "yourAlias": alias,
+                "roomType": room_data.get("type", "private"),
+                "hasPartner": False,
+                "waiting": True,
+            },
+            to=sid,
         )
 
 
@@ -309,7 +396,7 @@ def handle_typing(data):
 def handle_leave_chat():
     """Leave the current chat room and notify partner."""
     sid = request.sid
-    room_id, partner_sid = cleanup_socket(sid)
+    room_id, partner_sid = cleanup_socket(sid, explicit_leave=True)
     if partner_sid:
         emit("partner_left", {"reason": "left"}, to=partner_sid)
     emit("chat_ended", {"reason": "left"})
@@ -325,7 +412,7 @@ def handle_block_user():
         if partner_sid:
             block_partner(sid, partner_sid)
             emit("partner_left", {"reason": "blocked"}, to=partner_sid)
-    cleanup_socket(sid)
+    cleanup_socket(sid, explicit_leave=True)
     emit("chat_ended", {"reason": "blocked"})
 
 
@@ -340,5 +427,5 @@ def handle_report_user(data):
         if partner_sid:
             record_report(sid, partner_sid, room_id, reason)
             emit("partner_left", {"reason": "reported"}, to=partner_sid)
-    cleanup_socket(sid)
+    cleanup_socket(sid, explicit_leave=True)
     emit("chat_ended", {"reason": "reported"})

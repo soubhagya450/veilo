@@ -97,3 +97,45 @@ def test_rest_validate_room_code(client, socket_client):
     assert resp.json["available"] is True
 
     c.disconnect()
+
+
+
+def test_private_room_persists_across_mobile_disconnect(client, socket_client):
+    """
+    On mobile devices, when host switches apps (e.g. WhatsApp to share code),
+    socket disconnects temporarily. The room and code MUST NOT be destroyed.
+    """
+    c_host = socket_client()
+    c_host.emit("create_room")
+    created = next(e for e in c_host.get_received() if e["name"] == "room_created")
+    code = created["args"][0]["roomCode"]
+    room_id = created["args"][0]["roomId"]
+
+    # Host switches app (socket drops)
+    c_host.disconnect()
+
+    # Friend validates room code via REST while host is away
+    resp = client.post("/api/rooms/validate-code", json={"code": code})
+    assert resp.status_code == 200
+    assert resp.json["available"] is True
+
+    # Friend joins via socket
+    c_friend = socket_client()
+    c_friend.emit("join_room_code", {"code": code})
+    matched = [e for e in c_friend.get_received() if e["name"] == "matched"]
+    assert len(matched) == 1
+    assert matched[0]["args"][0]["roomId"] == room_id
+
+    # Host re-opens browser with a new socket and re-attaches
+    c_host_new = socket_client()
+    c_host_new.emit("reconnect_room", {"roomId": room_id, "roomCode": code})
+    reconnected = [e for e in c_host_new.get_received() if e["name"] == "reconnected"]
+    assert len(reconnected) == 1
+    assert reconnected[0]["args"][0]["hasPartner"] is True
+
+    # Friend receives notification that host is back
+    friend_events = c_friend.get_received()
+    assert any(e["name"] == "partner_back" for e in friend_events)
+
+    c_friend.disconnect()
+    c_host_new.disconnect()

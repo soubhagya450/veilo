@@ -18,26 +18,44 @@ def destroy_room(room_id: str):
         logger.error("Error destroying room %s: %s", room_id[:8], e)
 
 
-def cleanup_socket(sid: str) -> Tuple[Optional[str], Optional[str]]:
+def cleanup_socket(sid: str, explicit_leave: bool = False) -> Tuple[Optional[str], Optional[str]]:
     """
     Complete cleanup for a disconnected or leaving socket.
+    explicit_leave: True if the user deliberately initiated leave/block/report.
+                    False if the socket suddenly dropped (mobile background, screen lock).
     1. Removes socket from matchmaking queue.
     2. Removes socket from active room.
-    3. Returns (room_id, partner_sid) so caller can notify partner and destroy room.
+    3. Manages room destruction based on room type and leave type.
     """
     # Remove from waiting queue if queued
     matchmaking.remove_from_queue(sid)
+
+    # Get room metadata before removing member
+    room_id = room_manager.get_room_for_sid(sid)
+    room_data = room_manager.get_room(room_id) if room_id else None
+    room_type = room_data.get("type", "stranger") if room_data else "stranger"
 
     # Remove from room
     room_id, partner_sid = room_manager.remove_member(sid)
 
     if room_id:
-        # Check remaining members
         remaining = room_manager.get_room_members(room_id)
-        if not remaining:
-            destroy_room(room_id)
+        if explicit_leave:
+            # Explicit leave: destroy if empty or if private room was abandoned
+            if not remaining or room_type == "private":
+                destroy_room(room_id)
+        else:
+            # Sudden disconnect / mobile app switch / temporary network drop
+            if room_type == "private":
+                # DO NOT destroy private rooms on sudden disconnect!
+                # Keeps room and code alive for its 30-min TTL so friends can enter
+                # and mobile users can switch back from WhatsApp/SMS.
+                pass
+            else:
+                if not remaining:
+                    destroy_room(room_id)
 
-    # Clean up any lingering socket keys
+    # Clean up lingering socket key
     extensions.redis_client.delete(f"sid:{sid}")
 
     return room_id, partner_sid

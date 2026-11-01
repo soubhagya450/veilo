@@ -38,10 +38,12 @@ export default function ChatWindow({
   const isPrivate = roomType === "private";
 
   // Anti-Screenshot & Screen Recording hook active in code rooms
+  // Only enable blockOnMouseLeave on desktop pointer/hover devices to avoid false mobile touch cancels
+  const isHoverSupported = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(hover: hover)").matches;
   const { isShielded, warningToast, clearWarning } = useAntiCapture({
     enabled: isPrivate,
     roomCode: roomCode || "",
-    blockOnMouseLeave: isPrivate,
+    blockOnMouseLeave: isPrivate && isHoverSupported,
   });
 
   // Intelligent auto-scroll:
@@ -105,9 +107,9 @@ export default function ChatWindow({
       }}
     >
       {/* Chat Header */}
-      <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-950/85 border-b border-slate-800/80 backdrop-blur-md z-10 shrink-0 gap-2">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-950/85 border-b border-slate-800/80 backdrop-blur-md z-10 shrink-0 gap-2">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700/60 flex items-center justify-center text-slate-300 shadow-sm relative shrink-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700/60 flex items-center justify-center text-slate-300 shadow-sm relative shrink-0">
             <User className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
             {isConnected && (
               <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5 sm:h-3 sm:w-3">
@@ -138,18 +140,22 @@ export default function ChatWindow({
                 <>
                   <AntiCaptureBadge onClick={() => setShowShieldModal(true)} />
 
-                  {/* Stealth Veil Toggle */}
+                  {/* Stealth Veil Toggle - Always visible on all screens (mobile & desktop) */}
                   <button
                     onClick={() => setIsStealthVeilActive(!isStealthVeilActive)}
-                    title={isStealthVeilActive ? "Stealth Veil: Active (Hold to peek)" : "Stealth Veil: Off (Always visible)"}
-                    className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-medium transition-all cursor-pointer border ${
+                    title={isStealthVeilActive ? "Turn OFF Stealth Veil" : "Turn ON Stealth Veil"}
+                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-medium transition-all cursor-pointer border shrink-0 ${
                       isStealthVeilActive
-                        ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
-                        : "bg-slate-800 border-slate-700 text-slate-400"
+                        ? "bg-cyan-500/15 border-cyan-500/40 text-cyan-300 shadow-sm shadow-cyan-500/20"
+                        : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200"
                     }`}
                   >
-                    {isStealthVeilActive ? <EyeOff className="w-3 h-3 text-cyan-400" /> : <Eye className="w-3 h-3" />}
-                    <span>{isStealthVeilActive ? "Veil: ON" : "Veil: OFF"}</span>
+                    {isStealthVeilActive ? (
+                      <EyeOff className="w-3 h-3 text-cyan-400" />
+                    ) : (
+                      <Eye className="w-3 h-3 text-slate-400" />
+                    )}
+                    <span className="font-semibold">{isStealthVeilActive ? "Veil: ON" : "Veil: OFF"}</span>
                   </button>
 
                   {/* Test Lab Pill */}
@@ -169,7 +175,7 @@ export default function ChatWindow({
               {isConnected
                 ? isPrivate
                   ? isStealthVeilActive
-                    ? "Connected • Stealth Veil Active (Hold to read • Anti-Recording)"
+                    ? "Connected • Stealth Veil Active (Tap/Hold to read)"
                     : "Connected • Anti-Capture Protection Active"
                   : "Active stranger conversation"
                 : isPartnerLeft
@@ -190,14 +196,41 @@ export default function ChatWindow({
         />
       </div>
 
-      {/* Ephemeral & Security Notice Banner */}
-      <div className="bg-slate-950/40 border-b border-slate-800/40 px-3 py-1 flex items-center justify-center gap-2 text-[10px] sm:text-[11px] text-slate-400 text-center shrink-0">
-        <Lock className="w-3 h-3 text-cyan-400 shrink-0" />
-        <span className="truncate">
-          {isPrivate
-            ? "Code Room: Ephemeral RAM relay • Screenshots, recordings & copying prohibited."
-            : "Ephemeral: Messages live in RAM only and vanish on exit."}
-        </span>
+      {/* Ephemeral & Security Notice Banner with Direct Veil Control */}
+      <div className="bg-slate-950/60 border-b border-slate-800/60 px-3 py-1.5 flex items-center justify-between gap-2 text-[10px] sm:text-[11px] text-slate-400 shrink-0 backdrop-blur-sm">
+        <div className="flex items-center gap-1.5 truncate">
+          <Lock className="w-3 h-3 text-cyan-400 shrink-0" />
+          <span className="truncate">
+            {isPrivate
+              ? isStealthVeilActive
+                ? "Stealth Veil: Tap or hold message to reveal • Screenshots blocked"
+                : "Messages visible • Ephemeral RAM only • Screenshots blocked"
+              : "Ephemeral: Messages live in RAM only and vanish on exit."}
+          </span>
+        </div>
+
+        {isPrivate && (
+          <button
+            onClick={() => setIsStealthVeilActive(!isStealthVeilActive)}
+            className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+              isStealthVeilActive
+                ? "bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/30 text-cyan-300"
+                : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300"
+            }`}
+          >
+            {isStealthVeilActive ? (
+              <>
+                <Eye className="w-2.5 h-2.5" />
+                <span>Turn OFF Veil</span>
+              </>
+            ) : (
+              <>
+                <EyeOff className="w-2.5 h-2.5" />
+                <span>Turn ON Veil</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Error Toast */}

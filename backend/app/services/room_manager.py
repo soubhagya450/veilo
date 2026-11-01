@@ -29,6 +29,7 @@ class RoomManager:
                 "type": room_type,
                 "created_at": str(time.time()),
                 "code": code or "",
+                "status": "waiting" if room_type == "private" else "active",
             },
         )
         extensions.redis_client.expire(room_key, self.room_ttl)
@@ -70,7 +71,52 @@ class RoomManager:
         extensions.redis_client.sadd(members_key, sid)
         extensions.redis_client.expire(members_key, self.room_ttl)
 
+        if len(current_members) + 1 >= 2:
+            extensions.redis_client.hset(f"room:{room_id}", mapping={"status": "active"})
+
         # Store session mapping for SID
+        sid_key = f"sid:{sid}"
+        extensions.redis_client.hset(
+            sid_key,
+            mapping={
+                "room_id": room_id,
+                "alias": alias,
+                "session_id": session_id,
+            },
+        )
+        extensions.redis_client.expire(sid_key, self.room_ttl)
+        return True
+
+    def reattach_member(self, room_id: str, sid: str, session_id: str = "", alias: str = "Guest") -> bool:
+        """
+        Re-attach a newly connected or reconnected socket to an existing room.
+        Preserves room and rebinds session.
+        """
+        if not self.get_room(room_id):
+            return False
+
+        members_key = f"room:{room_id}:members"
+        current_members = list(extensions.redis_client.smembers(members_key))
+
+        if sid in current_members:
+            return True
+
+        # If any member in current_members shares the same session_id, replace stale socket
+        if session_id:
+            for m_sid in list(current_members):
+                m_sess = self.get_session_for_sid(m_sid)
+                if m_sess and m_sess.get("session_id") == session_id:
+                    extensions.redis_client.srem(members_key, m_sid)
+                    extensions.redis_client.delete(f"sid:{m_sid}")
+                    current_members.remove(m_sid)
+                    break
+
+        if len(current_members) >= 2:
+            return False
+
+        extensions.redis_client.sadd(members_key, sid)
+        extensions.redis_client.expire(members_key, self.room_ttl)
+
         sid_key = f"sid:{sid}"
         extensions.redis_client.hset(
             sid_key,
