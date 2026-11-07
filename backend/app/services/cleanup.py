@@ -22,7 +22,7 @@ def cleanup_socket(sid: str, explicit_leave: bool = False) -> Tuple[Optional[str
     """
     Complete cleanup for a disconnected or leaving socket.
     explicit_leave: True if the user deliberately initiated leave/block/report.
-                    False if the socket suddenly dropped (mobile background, screen lock).
+                    False if the socket suddenly dropped (tab close, network drop).
     1. Removes socket from matchmaking queue.
     2. Removes socket from active room.
     3. Manages room destruction based on room type and leave type.
@@ -45,12 +45,12 @@ def cleanup_socket(sid: str, explicit_leave: bool = False) -> Tuple[Optional[str
             if not remaining or room_type == "private":
                 destroy_room(room_id)
         else:
-            # Sudden disconnect / mobile app switch / temporary network drop
+            # Sudden disconnect / tab close / network drop
             if room_type == "private":
-                # DO NOT destroy private rooms on sudden disconnect!
-                # Keeps room and code alive for its 30-min TTL so friends can enter
-                # and mobile users can switch back from WhatsApp/SMS.
-                pass
+                # If partner existed, an active chat was terminated: destroy room if empty
+                # If host was waiting alone (partner_sid is None), keep code alive for 30m TTL
+                if not remaining and partner_sid is not None:
+                    destroy_room(room_id)
             else:
                 if not remaining:
                     destroy_room(room_id)

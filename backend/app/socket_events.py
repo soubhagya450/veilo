@@ -99,19 +99,11 @@ def handle_disconnect():
     redis_client.delete(f"sid_meta:{sid}")
 
     if partner_sid:
-        if room_type == "private":
-            # For private code rooms, notify partner of momentary connection pause,
-            # don't declare the conversation permanently ended!
-            emit(
-                "partner_away",
-                {
-                    "reason": "paused",
-                    "message": "Partner connection paused... waiting to reconnect.",
-                },
-                to=partner_sid,
-            )
-        else:
-            emit("partner_left", {"reason": "disconnected"}, to=partner_sid)
+        # One participant in an active 2-person chat disconnected/closed browser:
+        # Immediately notify the remaining partner so they never get stuck waiting!
+        emit("partner_left", {"reason": "left"}, to=partner_sid)
+        if room_id:
+            destroy_room(room_id)
     logger.debug("Socket disconnected: %s", sid[:6])
 
 

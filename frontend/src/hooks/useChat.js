@@ -13,8 +13,36 @@ export function useChat() {
   const [errorMessage, setErrorMessage] = useState(null);
 
   const typingTimeoutRef = useRef(null);
+  const roomIdRef = useRef(roomId);
+  const chatStatusRef = useRef(chatStatus);
 
-  // Play subtle audio chime on message if user allows
+  useEffect(() => {
+    roomIdRef.current = roomId;
+    chatStatusRef.current = chatStatus;
+  }, [roomId, chatStatus]);
+
+  // Clean exit: when user navigates away or closes tab during active chat, immediately notify partner
+  useEffect(() => {
+    const handleLeaveOnExit = () => {
+      if (chatStatusRef.current === "connected" || roomIdRef.current) {
+        socket.emit("leave_chat");
+      }
+    };
+
+    window.addEventListener("beforeunload", handleLeaveOnExit);
+    window.addEventListener("pagehide", handleLeaveOnExit);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleLeaveOnExit);
+      window.removeEventListener("pagehide", handleLeaveOnExit);
+      if (chatStatusRef.current === "connected" || chatStatusRef.current === "searching") {
+        socket.emit("leave_chat");
+        sessionStorage.removeItem("veilo_active_room");
+      }
+    };
+  }, []);
+
+  // Play subtle audio chime on message/events if user allows
   const playChime = useCallback((type = "message") => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -27,6 +55,14 @@ export function useChat() {
         osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
         osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
         gain.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.25);
+      } else if (type === "partner_left") {
+        // Distinct descending tone indicating partner departure
+        osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
+        osc.frequency.exponentialRampToValueAtTime(220, ctx.currentTime + 0.2); // A3
+        gain.gain.setValueAtTime(0.09, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
         osc.start(ctx.currentTime);
         osc.stop(ctx.currentTime + 0.25);
@@ -195,15 +231,15 @@ export function useChat() {
     }
 
     function onPartnerAway(data) {
-      // Temporary pause (e.g. mobile screen lock / app switch), NOT ended!
+      // If server emits pause/away, notify clearly
       setIsPartnerTyping(false);
       setMessages((prev) => [
         ...prev,
         {
           id: `sys-away-${Date.now()}`,
-          text: data?.message || "Partner connection paused... waiting for them to return.",
+          text: data?.message || "Partner connection paused... waiting to reconnect.",
           isSystem: true,
-          systemType: "info",
+          systemType: "warning",
           timestamp: Date.now(),
         },
       ]);
@@ -247,7 +283,9 @@ export function useChat() {
           ? "You have blocked this partner."
           : data?.reason === "reported"
           ? "Report submitted. Conversation closed."
-          : `${partnerAlias || "Stranger"} has left the conversation.`;
+          : data?.reason === "skipped"
+          ? `${partnerAlias || "Stranger"} skipped to next stranger.`
+          : `${partnerAlias || "Your partner"} has left the conversation.`;
 
       setMessages((prev) => [
         ...prev,
@@ -259,6 +297,7 @@ export function useChat() {
           timestamp: Date.now(),
         },
       ]);
+      playChime("partner_left");
     }
 
     function onChatEnded() {

@@ -79,7 +79,7 @@ export default function MessageInput({ onSendMessage, onTyping, disabled = false
             disabled={disabled}
             placeholder={
               disabled
-                ? "Conversation ended. Leave or find a new chat."
+                ? "Partner has left the conversation. Leave or find a new chat."
                 : "Type a secret message... (Enter to send, Shift+Enter for line)"
             }
             /* text-base on mobile prevents iOS Safari auto-zoom on input focus */

@@ -139,3 +139,30 @@ def test_private_room_persists_across_mobile_disconnect(client, socket_client):
 
     c_friend.disconnect()
     c_host_new.disconnect()
+
+
+
+def test_active_chat_disconnect_immediately_notifies_partner(socket_client):
+    """
+    When two users are connected in an active chat and one leaves (closes tab or disconnects),
+    the other user MUST immediately receive the partner_left event.
+    """
+    c1 = socket_client()
+    c2 = socket_client()
+
+    c1.emit("create_room")
+    code = next(e for e in c1.get_received() if e["name"] == "room_created")["args"][0]["roomCode"]
+
+    c2.emit("join_room_code", {"code": code})
+    c1.get_received()
+    c2.get_received()
+
+    # c1 closes tab / disconnects
+    c1.disconnect()
+
+    # c2 must immediately receive partner_left
+    c2_events = c2.get_received()
+    left_events = [e for e in c2_events if e["name"] == "partner_left"]
+    assert len(left_events) == 1
+
+    c2.disconnect()

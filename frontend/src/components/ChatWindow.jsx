@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { Shield, Lock, ChevronDown, User, AlertCircle, RefreshCw, ShieldCheck, KeyRound, Eye, EyeOff, FlaskConical } from "lucide-react";
+import { Shield, Lock, ChevronDown, User, AlertCircle, RefreshCw, ShieldCheck, KeyRound, Eye, EyeOff, FlaskConical, LogOut } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import MessageInput from "./MessageInput";
 import TypingIndicator from "./TypingIndicator";
@@ -38,7 +38,6 @@ export default function ChatWindow({
   const isPrivate = roomType === "private";
 
   // Anti-Screenshot & Screen Recording hook active in code rooms
-  // Only enable blockOnMouseLeave on desktop pointer/hover devices to avoid false mobile touch cancels
   const isHoverSupported = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(hover: hover)").matches;
   const { isShielded, warningToast, clearWarning } = useAntiCapture({
     enabled: isPrivate,
@@ -46,10 +45,7 @@ export default function ChatWindow({
     blockOnMouseLeave: isPrivate && isHoverSupported,
   });
 
-  // Intelligent auto-scroll:
-  // - Scrolls to bottom when user sends a message
-  // - Scrolls to bottom if user is already near bottom
-  // - If user is scrolled up reading past messages, notifies without forcibly jerking view
+  // Intelligent auto-scroll
   useEffect(() => {
     if (!scrollContainerRef.current) return;
 
@@ -62,7 +58,7 @@ export default function ChatWindow({
     const isNewMessageAdded = messages.length > prevMessagesLengthRef.current;
     prevMessagesLengthRef.current = messages.length;
 
-    if (isSelfMessage || isAtBottom) {
+    if (isSelfMessage || isAtBottom || isPartnerLeft) {
       container.scrollTo({
         top: container.scrollHeight,
         behavior: isNewMessageAdded ? "smooth" : "auto",
@@ -71,7 +67,7 @@ export default function ChatWindow({
     } else if (isNewMessageAdded) {
       setHasNewUnread(true);
     }
-  }, [messages, isPartnerTyping]);
+  }, [messages, isPartnerTyping, isPartnerLeft]);
 
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
@@ -115,6 +111,11 @@ export default function ChatWindow({
               <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5 sm:h-3 sm:w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 bg-emerald-500 border-2 border-slate-950"></span>
+              </span>
+            )}
+            {isPartnerLeft && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5 sm:h-3 sm:w-3">
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 bg-rose-500 border-2 border-slate-950 shadow-sm"></span>
               </span>
             )}
           </div>
@@ -171,17 +172,24 @@ export default function ChatWindow({
               )}
             </div>
 
-            <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
-              {isConnected
-                ? isPrivate
-                  ? isStealthVeilActive
-                    ? "Connected • Stealth Veil Active (Tap/Hold to read)"
-                    : "Connected • Anti-Capture Protection Active"
-                  : "Active stranger conversation"
-                : isPartnerLeft
-                ? "Partner disconnected"
-                : "Disconnected"}
-            </p>
+            <div className="text-[10px] sm:text-[11px] truncate">
+              {isConnected ? (
+                <span className="text-slate-400">
+                  {isPrivate
+                    ? isStealthVeilActive
+                      ? "Connected • Stealth Veil Active (Tap/Hold to read)"
+                      : "Connected • Anti-Capture Protection Active"
+                    : "Active stranger conversation"}
+                </span>
+              ) : isPartnerLeft ? (
+                <span className="text-rose-400 font-bold flex items-center gap-1.5 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                  {partnerAlias || "Partner"} has left the conversation
+                </span>
+              ) : (
+                <span className="text-slate-500">Disconnected</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -196,42 +204,50 @@ export default function ChatWindow({
         />
       </div>
 
-      {/* Ephemeral & Security Notice Banner with Direct Veil Control */}
-      <div className="bg-slate-950/60 border-b border-slate-800/60 px-3 py-1.5 flex items-center justify-between gap-2 text-[10px] sm:text-[11px] text-slate-400 shrink-0 backdrop-blur-sm">
-        <div className="flex items-center gap-1.5 truncate">
-          <Lock className="w-3 h-3 text-cyan-400 shrink-0" />
-          <span className="truncate">
-            {isPrivate
-              ? isStealthVeilActive
-                ? "Stealth Veil: Tap or hold message to reveal • Screenshots blocked"
-                : "Messages visible • Ephemeral RAM only • Screenshots blocked"
-              : "Ephemeral: Messages live in RAM only and vanish on exit."}
-          </span>
+      {/* Immediate Partner Left Banner Alert */}
+      {isPartnerLeft ? (
+        <div className="bg-rose-500/20 border-b border-rose-500/40 px-3 py-2 flex items-center justify-center gap-2 text-xs font-semibold text-rose-300 text-center shrink-0 animate-fade-in shadow-md">
+          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 animate-bounce" />
+          <span>{partnerAlias || "Your partner"} has left the chat. This conversation has ended.</span>
         </div>
+      ) : (
+        /* Ephemeral & Security Notice Banner with Direct Veil Control */
+        <div className="bg-slate-950/60 border-b border-slate-800/60 px-3 py-1.5 flex items-center justify-between gap-2 text-[10px] sm:text-[11px] text-slate-400 shrink-0 backdrop-blur-sm">
+          <div className="flex items-center gap-1.5 truncate">
+            <Lock className="w-3 h-3 text-cyan-400 shrink-0" />
+            <span className="truncate">
+              {isPrivate
+                ? isStealthVeilActive
+                  ? "Stealth Veil: Tap or hold message to reveal • Screenshots blocked"
+                  : "Messages visible • Ephemeral RAM only • Screenshots blocked"
+                : "Ephemeral: Messages live in RAM only and vanish on exit."}
+            </span>
+          </div>
 
-        {isPrivate && (
-          <button
-            onClick={() => setIsStealthVeilActive(!isStealthVeilActive)}
-            className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
-              isStealthVeilActive
-                ? "bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/30 text-cyan-300"
-                : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300"
-            }`}
-          >
-            {isStealthVeilActive ? (
-              <>
-                <Eye className="w-2.5 h-2.5" />
-                <span>Turn OFF Veil</span>
-              </>
-            ) : (
-              <>
-                <EyeOff className="w-2.5 h-2.5" />
-                <span>Turn ON Veil</span>
-              </>
-            )}
-          </button>
-        )}
-      </div>
+          {isPrivate && (
+            <button
+              onClick={() => setIsStealthVeilActive(!isStealthVeilActive)}
+              className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                isStealthVeilActive
+                  ? "bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/30 text-cyan-300"
+                  : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300"
+              }`}
+            >
+              {isStealthVeilActive ? (
+                <>
+                  <Eye className="w-2.5 h-2.5" />
+                  <span>Turn OFF Veil</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-2.5 h-2.5" />
+                  <span>Turn ON Veil</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Error Toast */}
       {errorMessage && (
@@ -293,16 +309,19 @@ export default function ChatWindow({
 
         {/* Partner Left Action Prompt */}
         {isPartnerLeft && (
-          <div className="my-6 p-5 sm:p-6 rounded-2xl bg-slate-950/80 border border-slate-800 text-center max-w-sm sm:max-w-md mx-auto shadow-xl select-none">
-            <h3 className="text-sm font-semibold text-slate-200">Conversation Ended</h3>
-            <p className="text-xs text-slate-400 mt-1 mb-4">
-              Your partner has disconnected or left the room. All session messages have been cleared from RAM.
+          <div className="my-6 p-5 sm:p-6 rounded-3xl bg-slate-950/90 border border-rose-500/30 text-center max-w-sm sm:max-w-md mx-auto shadow-2xl select-none animate-fade-in">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-rose-500/15">
+              <LogOut className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-slate-100">Conversation Ended</h3>
+            <p className="text-xs text-slate-300 mt-1.5 mb-5 leading-relaxed">
+              <span className="font-semibold text-rose-300">{partnerAlias || "Your partner"}</span> has left the conversation. All session messages have been permanently cleared from RAM.
             </p>
             <div className="flex items-center justify-center gap-3">
               {!isPrivate ? (
                 <button
                   onClick={onNext}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-95 text-white text-xs font-semibold shadow-md transition-all cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-95 text-white text-xs font-bold shadow-lg shadow-cyan-500/20 transition-all cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   Find New Stranger
@@ -310,7 +329,7 @@ export default function ChatWindow({
               ) : (
                 <button
                   onClick={onLeave}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
                 >
                   Leave Room
                 </button>
