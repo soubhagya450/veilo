@@ -107,7 +107,7 @@ export function useChat() {
 
     function onConnectError() {
       setErrorMessage(
-        "Connecting to Veilo backend server... If on Render free tier, waking up takes 30-45 seconds."
+        "Connecting to SayHii backend server... If on Render free tier, waking up takes 30-45 seconds."
       );
     }
 
@@ -377,7 +377,7 @@ export function useChat() {
     ensureConnected();
     if (!socket.connected) {
       setErrorMessage(
-        "Connecting to Veilo backend server... If on Render free tier, waking up takes 30-45 seconds."
+        "Connecting to SayHii backend server... If on Render free tier, waking up takes 30-45 seconds."
       );
       socket.once("connect", () => {
         setErrorMessage(null);
@@ -397,7 +397,7 @@ export function useChat() {
       const cleanCode = code ? code.trim().toUpperCase() : "";
       if (!socket.connected) {
         setErrorMessage(
-          "Connecting to Veilo backend server... If on Render free tier, waking up takes 30-45 seconds."
+          "Connecting to SayHii backend server... If on Render free tier, waking up takes 30-45 seconds."
         );
         socket.once("connect", () => {
           setErrorMessage(null);

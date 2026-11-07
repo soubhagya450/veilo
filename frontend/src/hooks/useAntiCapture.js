@@ -36,7 +36,7 @@ export function useAntiCapture({
   const clearClipboard = useCallback(async () => {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText("Veilo Shield: Screen capture is prohibited.");
+        await navigator.clipboard.writeText("SayHii Shield: Screen capture is prohibited.");
       }
     } catch {
       // Best-effort clipboard overwrite
@@ -152,7 +152,7 @@ export function useAntiCapture({
     if (navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === "function") {
       originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
       navigator.mediaDevices.getDisplayMedia = async function () {
-        showWarning("Screen recording API blocked by Veilo Security.", "MEDIA_RECORDER");
+        showWarning("Screen recording API blocked by SayHii Security.", "MEDIA_RECORDER");
         throw new DOMException("Screen capture is prohibited in private rooms.", "NotAllowedError");
       };
     }

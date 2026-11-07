@@ -16,7 +16,7 @@ if __name__ == "__main__":
     is_debug = False if env_name == "production" else app.config.get("DEBUG", False)
 
     print("==================================================")
-    print(f"  Veilo Backend running on http://{host}:{port}")
+    print(f"  SayHii Backend running on http://{host}:{port}")
     print("  Socket.IO & REST endpoints active")
     print(f"  Environment: {env_name}")
     print("==================================================")

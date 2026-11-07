@@ -33,8 +33,8 @@ export default function RoomCodeModal({ code, onCancel }) {
     if (canShare) {
       try {
         await navigator.share({
-          title: "Join my Veilo private chat",
-          text: `Join my private encrypted chat on Veilo with code: ${code}\nLink: ${joinUrl}`,
+          title: "Join my SayHii private chat",
+          text: `Join my private encrypted chat on SayHii with code: ${code}\nLink: ${joinUrl}`,
           url: joinUrl,
         });
       } catch (err) {

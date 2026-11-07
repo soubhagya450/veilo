@@ -68,7 +68,7 @@ export default function AntiCaptureShield({
             key={i}
             className="text-[11px] font-mono font-bold tracking-widest text-slate-200 uppercase whitespace-nowrap"
           >
-            VEILO SECURE • CODE {roomCode || "PRIVATE"} • NO LOGS
+            SAYHII SECURE • CODE {roomCode || "PRIVATE"} • NO LOGS
           </span>
         ))}
       </div>

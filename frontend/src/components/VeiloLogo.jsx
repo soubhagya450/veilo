@@ -104,7 +104,7 @@ export default function VeiloLogo({
       <div className={`flex flex-col items-center ${className}`}>
         <img
           src="/logo.png"
-          alt="Veilo — Connect without revealing"
+          alt="SayHii — Connect without revealing"
           className={`${iconSizes[size]} object-contain drop-shadow-xl`}
         />
       </div>
@@ -125,10 +125,10 @@ export default function VeiloLogo({
           {/* Custom Styled 'V': Cyan/Blue left diagonal, crisp white right diagonal */}
           <span className="relative inline-block font-sans">
             <span className="bg-gradient-to-b from-[#00F5FF] via-[#00A2FF] to-[#0051FF] bg-clip-text text-transparent">
-              V
+              Say
             </span>
           </span>
-          <span className="text-white font-sans">eilo</span>
+          <span className="text-white font-sans">Hii</span>
         </div>
 
         {showTagline && (
@@ -142,3 +142,6 @@ export default function VeiloLogo({
     </div>
   );
 }
+
+export const SayHiiIcon = VeiloIcon;
+export const SayHiiLogo = VeiloLogo;

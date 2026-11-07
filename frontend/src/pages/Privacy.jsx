@@ -11,10 +11,10 @@ export default function Privacy() {
           <span>Full Architectural Transparency</span>
         </div>
         <h1 className="text-2xl xs:text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-3 sm:mb-4">
-          Veilo Privacy Guarantee
+          SayHii Privacy Guarantee
         </h1>
         <p className="text-xs sm:text-base text-slate-400 max-w-2xl mx-auto leading-relaxed px-2">
-          We built Veilo on a zero-persistence model: conversations cannot leak or be retrieved because they simply do not exist once you leave.
+          We built SayHii on a zero-persistence model: conversations cannot leak or be retrieved because they simply do not exist once you leave.
         </p>
       </div>
 
@@ -59,7 +59,7 @@ export default function Privacy() {
             <div>
               <h3 className="text-base sm:text-lg font-bold text-slate-100 mb-1">No Accounts & No Identity Profiling</h3>
               <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-                Veilo requires no registration, email, phone number, or profile creation. Each connection is assigned an anonymous, ephemeral handle (like <code>Guest-7A9B</code>). Sockets never broadcast your real IP, user agent, or device identifiers to other users.
+                SayHii requires no registration, email, phone number, or profile creation. Each connection is assigned an anonymous, ephemeral handle (like <code>Guest-7A9B</code>). Sockets never broadcast your real IP, user agent, or device identifiers to other users.
               </p>
             </div>
           </div>
@@ -89,7 +89,7 @@ export default function Privacy() {
             <div>
               <h3 className="text-base sm:text-lg font-bold text-slate-100 mb-1">Client-Side Anti-Capture Shield</h3>
               <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-                When talking to a friend using an 8-character room code, Veilo activates a multi-layered shield: PrintScreen interception with clipboard sanitization, window unfocus blackout blurs against OBS / Snipping Tool screen recording, print style eradication, text drag/copy locks, and digital session watermarking.
+                When talking to a friend using an 8-character room code, SayHii activates a multi-layered shield: PrintScreen interception with clipboard sanitization, window unfocus blackout blurs against OBS / Snipping Tool screen recording, print style eradication, text drag/copy locks, and digital session watermarking.
               </p>
             </div>
           </div>
@@ -102,7 +102,7 @@ export default function Privacy() {
             <div>
               <h4 className="text-sm font-bold text-amber-300 mb-1">Your Anonymity is in Your Hands</h4>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                While Veilo safeguards your network identity and scrubs server-side history, true anonymity requires caution. <strong>Never disclose your legal name, location, social media links, financial info, or passwords in chat.</strong> If anyone violates your comfort or trust, use the built-in <strong>Block</strong> or <strong>Report</strong> controls immediately.
+                While SayHii safeguards your network identity and scrubs server-side history, true anonymity requires caution. <strong>Never disclose your legal name, location, social media links, financial info, or passwords in chat.</strong> If anyone violates your comfort or trust, use the built-in <strong>Block</strong> or <strong>Report</strong> controls immediately.
               </p>
             </div>
           </div>

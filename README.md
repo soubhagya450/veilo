@@ -1,4 +1,4 @@
-# Veilo — Connect Without Revealing
+# SayHii — Connect Without Revealing
 
 > **Zero-trace, anonymous, ephemeral messaging with hardware-level privacy shields and instant departure detection.**
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-**Veilo** is an ultra-secure, anonymous ephemeral chat platform. It lets people communicate in real time without storing conversations on disk or database. All session messages exist strictly in volatile server RAM and are immediately destroyed when participants leave.
+**SayHii** is an ultra-secure, anonymous ephemeral chat platform. It lets people communicate in real time without storing conversations on disk or database. All session messages exist strictly in volatile server RAM and are immediately destroyed when participants leave.
 
 ### Key Capabilities
 

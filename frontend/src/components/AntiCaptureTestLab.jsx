@@ -58,7 +58,7 @@ export default function AntiCaptureTestLab({ isOpen, onClose }) {
         e.preventDefault();
         addLog("Intercepted [PrintScreen] Key! Clipboard Scrambled.");
         try {
-          navigator.clipboard.writeText("Veilo Shield: Capture Prohibited.");
+          navigator.clipboard.writeText("SayHii Shield: Capture Prohibited.");
           setClipboardStatus("Overwritten with Privacy Notice");
         } catch {}
       }
@@ -83,8 +83,8 @@ export default function AntiCaptureTestLab({ isOpen, onClose }) {
     setIsSimulationActive(true);
     addLog("Simulated Screenshot Triggered: Screen Blurring for 2s");
     try {
-      navigator.clipboard.writeText("Veilo Shield: Capture Prohibited.");
-      setClipboardStatus("Scrambled by Veilo");
+      navigator.clipboard.writeText("SayHii Shield: Capture Prohibited.");
+      setClipboardStatus("Scrambled by SayHii");
     } catch {}
     setTimeout(() => {
       setIsSimulationActive(false);
@@ -127,7 +127,7 @@ export default function AntiCaptureTestLab({ isOpen, onClose }) {
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
             Standard web browsers run inside a sandboxed process. They cannot disable Windows OS kernel tools (like OBS, Windows Game Bar, or Snipping Tool).
-            To defeat screen recorders and screenshots, Veilo uses <strong>Confide-Style Stealth Peek-to-Reveal</strong>: messages stay 100% blacked out until you actively press and hold. Screen recorders record only black frosted bars!
+            To defeat screen recorders and screenshots, SayHii uses <strong>Confide-Style Stealth Peek-to-Reveal</strong>: messages stay 100% blacked out until you actively press and hold. Screen recorders record only black frosted bars!
           </p>
         </div>
 
@@ -179,7 +179,7 @@ export default function AntiCaptureTestLab({ isOpen, onClose }) {
               <Eye className="w-4 h-4 text-cyan-400" />
               Try "Stealth Peek-to-Reveal" (Click & Hold below)
             </span>
-            <span className="text-[10px] text-cyan-400 font-mono">Veilo Standard</span>
+            <span className="text-[10px] text-cyan-400 font-mono">SayHii Standard</span>
           </div>
 
           <p className="text-[11px] text-slate-400 mb-3">
@@ -190,7 +190,7 @@ export default function AntiCaptureTestLab({ isOpen, onClose }) {
             message={{
               id: "test-stealth-msg",
               text: "🔒 Secret Code: 8942-ALPHA. This message is impossible to record because it vanishes the moment you release your finger or mouse!",
-              senderAlias: "Veilo Security",
+              senderAlias: "SayHii Security",
               timestamp: Date.now(),
               isSelf: false,
               isSystem: false,

@@ -87,7 +87,7 @@ export default function SafetyControls({
             </div>
 
             <p className="text-xs text-slate-400 mt-3 leading-relaxed">
-              Veilo does not store message history. Submitting a report will record an anonymous abuse signal, automatically block this user, and immediately terminate the chat.
+              SayHii does not store message history. Submitting a report will record an anonymous abuse signal, automatically block this user, and immediately terminate the chat.
             </p>
 
             <div className="mt-4 space-y-2">

@@ -27,7 +27,7 @@ class MessageService:
         return {
             "id": secrets.token_hex(8),
             "text": text,
-            "senderAlias": "Veilo System",
+            "senderAlias": "SayHii System",
             "senderSid": "system",
             "timestamp": int(time.time() * 1000),
             "isSystem": True,

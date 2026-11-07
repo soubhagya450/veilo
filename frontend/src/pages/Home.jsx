@@ -18,7 +18,7 @@ export default function Home() {
             <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-fuchsia-500/20 rounded-full blur-2xl opacity-75 group-hover:opacity-100 transition duration-500"></div>
             <img
               src="/logo.png"
-              alt="Veilo — Connect without revealing"
+              alt="SayHii — Connect without revealing"
               className="relative w-28 h-28 xs:w-36 xs:h-36 sm:w-44 sm:h-44 object-contain drop-shadow-[0_12px_40px_rgba(0,114,255,0.4)] group-hover:scale-105 transition-transform duration-300 rounded-3xl"
             />
           </div>
@@ -39,7 +39,7 @@ export default function Home() {
         </h1>
 
         <p className="text-xs sm:text-base text-slate-400 max-w-2xl mx-auto mb-6 sm:mb-8 leading-relaxed px-2">
-          Veilo is an anonymous, real-time chat platform. Chat with random strangers or create private rooms with friends. No accounts, no cookies, and no stored history. Conversations vanish when you leave.
+          SayHii is an anonymous, real-time chat platform. Chat with random strangers or create private rooms with friends. No accounts, no cookies, and no stored history. Conversations vanish when you leave.
         </p>
 
         {/* Live Anti-Capture & Anti-Recording Shield Test Button */}
@@ -122,7 +122,7 @@ export default function Home() {
         {/* Feature Highlights Grid */}
         <div className="max-w-4xl mx-auto pt-6 sm:pt-8 border-t border-slate-800/80">
           <h2 className="text-[11px] sm:text-xs font-mono font-semibold uppercase tracking-widest text-slate-400 mb-6 sm:mb-8">
-            The Veilo Privacy Standard
+            The SayHii Privacy Standard
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5 text-left">
@@ -163,7 +163,7 @@ export default function Home() {
 
       {/* Footer Notice */}
       <footer className="text-center text-[11px] sm:text-xs text-slate-400 pt-8 sm:pt-12 relative z-10">
-        <p>Veilo — Connect without revealing. No message logs. No persistence.</p>
+        <p>SayHii — Connect without revealing. No message logs. No persistence.</p>
       </footer>
 
       {/* Interactive Anti-Capture Security Test Lab */}
