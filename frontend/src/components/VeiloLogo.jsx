@@ -125,10 +125,10 @@ export default function VeiloLogo({
           {/* Custom Styled 'V': Cyan/Blue left diagonal, crisp white right diagonal */}
           <span className="relative inline-block font-sans">
             <span className="bg-gradient-to-b from-[#00F5FF] via-[#00A2FF] to-[#0051FF] bg-clip-text text-transparent">
-              Say
+              S
             </span>
           </span>
-          <span className="text-white font-sans">Hii</span>
+          <span className="text-white font-sans">ayHii</span>
         </div>
 
         {showTagline && (
