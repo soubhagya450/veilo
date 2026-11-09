@@ -12,6 +12,12 @@
 
 - **Random Stranger Matchmaking**: 1-click anonymous matchmaking pairing two strangers with randomized handles.
 - **Private Code Rooms**: 2-person exclusive rooms protected by unguessable 8-character codes with automatic brute-force lockout.
+- **Private WebRTC Voice & Video Calling (Private Room Only)**:
+  - 1-to-1 encrypted voice and video calls exclusively available in connected private rooms.
+  - WebRTC peer-to-peer streaming with STUN network discovery (`stun:stun.l.google.com`).
+  - Real-time signaling via Flask-SocketIO with strict room membership authorization.
+  - Interactive call controls: Mute/Unmute microphone, Camera on/off, Picture-in-Picture floating preview, Call duration timer, Connection status indicator, and Minimize-to-chat.
+  - Clean media track teardown and instant termination if either peer departs or disconnects.
 - **Stealth Veil & Anti-Capture Shields**:
   - Peek-to-Reveal masking layer preventing shoulder-surfing, OS snipping tools, and unauthorized screen recording.
   - Supports both **Press-and-Hold** and **Tap-to-Reveal** with auto-conceal countdown timers.

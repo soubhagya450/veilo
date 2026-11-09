@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { Shield, Lock, ChevronDown, User, AlertCircle, RefreshCw, ShieldCheck, KeyRound, Eye, EyeOff, FlaskConical, LogOut } from "lucide-react";
+import { Shield, Lock, Phone, Video, ChevronDown, User, AlertCircle, RefreshCw, ShieldCheck, KeyRound, Eye, EyeOff, FlaskConical, LogOut } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import MessageInput from "./MessageInput";
 import TypingIndicator from "./TypingIndicator";
@@ -7,6 +7,8 @@ import SafetyControls from "./SafetyControls";
 import AntiCaptureShield, { AntiCaptureBadge } from "./AntiCaptureShield";
 import AntiCaptureTestLab from "./AntiCaptureTestLab";
 import { useAntiCapture } from "../hooks/useAntiCapture";
+import { useWebRTC } from "../hooks/useWebRTC";
+import CallOverlay from "./CallOverlay";
 
 export default function ChatWindow({
   roomId,
@@ -36,6 +38,34 @@ export default function ChatWindow({
   const isPartnerLeft = chatStatus === "partner_left";
   const isEnded = chatStatus === "ended";
   const isPrivate = roomType === "private";
+
+
+  // WebRTC Voice & Video Calling for Private Rooms
+  const {
+    callStatus,
+    callType,
+    incomingCall,
+    isMuted,
+    isVideoEnabled,
+    callDuration,
+    connectionStatus: callConnectionStatus,
+    errorMessage: callError,
+    isMinimized: isCallMinimized,
+    localStream,
+    remoteStream,
+    startCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    toggleMute,
+    toggleVideo,
+    toggleMinimize: toggleCallMinimize,
+    clearError: clearCallError,
+  } = useWebRTC({
+    enabled: isPrivate,
+    isConnected: isConnected,
+    partnerAlias: partnerAlias || "Friend",
+  });
 
   // Anti-Screenshot & Screen Recording hook active in code rooms
   const isHoverSupported = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(hover: hover)").matches;
@@ -193,15 +223,53 @@ export default function ChatWindow({
           </div>
         </div>
 
-        {/* Safety & Action Controls */}
-        <SafetyControls
-          onLeave={onLeave}
-          onBlock={onBlock}
-          onReport={onReport}
-          onNext={onNext}
-          isRandom={!isPrivate}
-          partnerAlias={partnerAlias || "Stranger"}
-        />
+        {/* Header Action Controls */}
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* WebRTC Voice & Video Call Controls (Exclusively in Private Rooms) */}
+          {isPrivate && isConnected && (
+            <div className="flex items-center gap-1 sm:gap-1.5 mr-0.5 sm:mr-1 pr-1 sm:pr-2 border-r border-slate-800">
+              {/* Voice Call Button */}
+              <button
+                onClick={() => startCall("voice")}
+                disabled={callStatus !== "idle"}
+                title="Start Voice Call"
+                className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-medium transition-all active:scale-95 cursor-pointer ${
+                  callStatus !== "idle"
+                    ? "bg-slate-800/40 border-slate-800 text-slate-500 cursor-not-allowed"
+                    : "bg-cyan-500/10 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/50 shadow-sm shadow-cyan-500/10"
+                }`}
+              >
+                <Phone className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="hidden sm:inline">Voice</span>
+              </button>
+
+              {/* Video Call Button */}
+              <button
+                onClick={() => startCall("video")}
+                disabled={callStatus !== "idle"}
+                title="Start Video Call"
+                className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-medium transition-all active:scale-95 cursor-pointer ${
+                  callStatus !== "idle"
+                    ? "bg-slate-800/40 border-slate-800 text-slate-500 cursor-not-allowed"
+                    : "bg-fuchsia-500/10 border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20 hover:border-fuchsia-500/50 shadow-sm shadow-fuchsia-500/10"
+                }`}
+              >
+                <Video className="w-3.5 h-3.5 text-fuchsia-400" />
+                <span className="hidden sm:inline">Video</span>
+              </button>
+            </div>
+          )}
+
+          {/* Safety & Action Controls */}
+          <SafetyControls
+            onLeave={onLeave}
+            onBlock={onBlock}
+            onReport={onReport}
+            onNext={onNext}
+            isRandom={!isPrivate}
+            partnerAlias={partnerAlias || "Stranger"}
+          />
+        </div>
       </div>
 
       {/* Immediate Partner Left Banner Alert */}
@@ -360,6 +428,32 @@ export default function ChatWindow({
         onTyping={onTyping}
         disabled={!isConnected}
       />
+
+
+      {/* WebRTC 1-to-1 Voice & Video Call Overlay (Private Room ONLY) */}
+      {isPrivate && (
+        <CallOverlay
+          callStatus={callStatus}
+          callType={callType}
+          incomingCall={incomingCall}
+          isMuted={isMuted}
+          isVideoEnabled={isVideoEnabled}
+          callDuration={callDuration}
+          connectionStatus={callConnectionStatus}
+          errorMessage={callError}
+          isMinimized={isCallMinimized}
+          localStream={localStream}
+          remoteStream={remoteStream}
+          partnerAlias={partnerAlias || "Friend"}
+          onAccept={acceptCall}
+          onReject={rejectCall}
+          onEndCall={endCall}
+          onToggleMute={toggleMute}
+          onToggleVideo={toggleVideo}
+          onToggleMinimize={toggleCallMinimize}
+          onClearError={clearCallError}
+        />
+      )}
 
       {/* Interactive Anti-Capture Test Lab Modal */}
       <AntiCaptureTestLab

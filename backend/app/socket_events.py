@@ -1,5 +1,6 @@
 import logging
 import secrets
+from typing import Optional, Tuple
 from flask import current_app, request
 from flask_socketio import emit, join_room, leave_room
 from app.extensions import socketio, redis_client
@@ -102,6 +103,7 @@ def handle_disconnect():
         # One participant in an active 2-person chat disconnected/closed browser:
         # Immediately notify the remaining partner so they never get stuck waiting!
         emit("partner_left", {"reason": "left"}, to=partner_sid)
+        emit("call_ended", {"reason": "partner_disconnected"}, to=partner_sid)
         if room_id:
             destroy_room(room_id)
     logger.debug("Socket disconnected: %s", sid[:6])
@@ -391,6 +393,7 @@ def handle_leave_chat():
     room_id, partner_sid = cleanup_socket(sid, explicit_leave=True)
     if partner_sid:
         emit("partner_left", {"reason": "left"}, to=partner_sid)
+        emit("call_ended", {"reason": "partner_left"}, to=partner_sid)
     emit("chat_ended", {"reason": "left"})
 
 
@@ -404,6 +407,7 @@ def handle_block_user():
         if partner_sid:
             block_partner(sid, partner_sid)
             emit("partner_left", {"reason": "blocked"}, to=partner_sid)
+            emit("call_ended", {"reason": "partner_blocked"}, to=partner_sid)
     cleanup_socket(sid, explicit_leave=True)
     emit("chat_ended", {"reason": "blocked"})
 
@@ -419,5 +423,203 @@ def handle_report_user(data):
         if partner_sid:
             record_report(sid, partner_sid, room_id, reason)
             emit("partner_left", {"reason": "reported"}, to=partner_sid)
+            emit("call_ended", {"reason": "partner_reported"}, to=partner_sid)
     cleanup_socket(sid, explicit_leave=True)
     emit("chat_ended", {"reason": "reported"})
+
+
+# ==============================================================================
+# WebRTC 1-to-1 Voice & Video Call Signaling (Private Room ONLY)
+# ==============================================================================
+
+def validate_private_call_context(sid: str) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
+    """
+    Validate that:
+    1. Socket is connected to a room.
+    2. Room is strictly a private room (calls are NOT permitted in stranger chat).
+    3. Room has an active partner.
+    Returns (is_valid, error_code, partner_sid, room_id).
+    """
+    room_id = room_manager.get_room_for_sid(sid)
+    if not room_id:
+        return False, "NOT_IN_ROOM", None, None
+
+    room_data = room_manager.get_room(room_id)
+    if not room_data or room_data.get("type") != "private":
+        return False, "NOT_PRIVATE_ROOM", None, room_id
+
+    partner_sid = room_manager.get_partner_sid(room_id, sid)
+    if not partner_sid:
+        return False, "NO_PARTNER", None, room_id
+
+    return True, None, partner_sid, room_id
+
+
+@socketio.on("call_initiate")
+def handle_call_initiate(data):
+    """
+    Initiate a 1-to-1 WebRTC voice or video call in a private room.
+    Payload: { callType: "voice" | "video" }
+    """
+    sid = request.sid
+    call_type = data.get("callType", "voice") if isinstance(data, dict) else "voice"
+    if call_type not in ("voice", "video"):
+        call_type = "voice"
+
+    valid, error_code, partner_sid, room_id = validate_private_call_context(sid)
+    if not valid:
+        error_msg = "Calls are exclusively available in connected private rooms."
+        if error_code == "NO_PARTNER":
+            error_msg = "Your friend has not entered the private room yet."
+        emit("call_error", {"code": error_code, "message": error_msg})
+        return
+
+    caller_session = room_manager.get_session_for_sid(sid)
+    caller_alias = caller_session.get("alias", "Friend") if caller_session else "Friend"
+
+    # Relay incoming call invite to partner
+    emit(
+        "call_incoming",
+        {
+            "callerSid": sid,
+            "callerAlias": caller_alias,
+            "callType": call_type,
+            "roomId": room_id,
+        },
+        to=partner_sid,
+    )
+
+    # Acknowledge caller that ringing has begun
+    emit(
+        "call_ringing",
+        {
+            "callType": call_type,
+            "partnerSid": partner_sid,
+        },
+    )
+
+
+@socketio.on("call_accept")
+def handle_call_accept(data):
+    """
+    Accept an incoming voice or video call.
+    Payload: { callType: "voice" | "video" }
+    """
+    sid = request.sid
+    call_type = data.get("callType", "voice") if isinstance(data, dict) else "voice"
+
+    valid, error_code, partner_sid, room_id = validate_private_call_context(sid)
+    if not valid:
+        emit("call_error", {"code": error_code, "message": "Cannot accept call: invalid room context."})
+        return
+
+    emit(
+        "call_accepted",
+        {
+            "callType": call_type,
+            "responderSid": sid,
+        },
+        to=partner_sid,
+    )
+
+
+@socketio.on("call_reject")
+def handle_call_reject(data):
+    """
+    Decline an incoming call or cancel an outgoing ringing call.
+    Payload: { reason: "declined" | "busy" | "cancelled" }
+    """
+    sid = request.sid
+    reason = data.get("reason", "declined") if isinstance(data, dict) else "declined"
+
+    room_id = room_manager.get_room_for_sid(sid)
+    if room_id:
+        partner_sid = room_manager.get_partner_sid(room_id, sid)
+        if partner_sid:
+            emit("call_rejected", {"reason": reason}, to=partner_sid)
+
+
+@socketio.on("webrtc_offer")
+def handle_webrtc_offer(data):
+    """
+    Relay WebRTC SDP offer to private room partner.
+    Payload: { sdp: dict, callType: "voice" | "video" }
+    """
+    sid = request.sid
+    valid, error_code, partner_sid, room_id = validate_private_call_context(sid)
+    if not valid or not isinstance(data, dict):
+        return
+
+    sdp = data.get("sdp")
+    call_type = data.get("callType", "voice")
+    if sdp:
+        emit(
+            "webrtc_offer",
+            {
+                "sdp": sdp,
+                "callType": call_type,
+                "senderSid": sid,
+            },
+            to=partner_sid,
+        )
+
+
+@socketio.on("webrtc_answer")
+def handle_webrtc_answer(data):
+    """
+    Relay WebRTC SDP answer to private room partner.
+    Payload: { sdp: dict }
+    """
+    sid = request.sid
+    valid, error_code, partner_sid, room_id = validate_private_call_context(sid)
+    if not valid or not isinstance(data, dict):
+        return
+
+    sdp = data.get("sdp")
+    if sdp:
+        emit(
+            "webrtc_answer",
+            {
+                "sdp": sdp,
+                "senderSid": sid,
+            },
+            to=partner_sid,
+        )
+
+
+@socketio.on("webrtc_ice_candidate")
+def handle_webrtc_ice_candidate(data):
+    """
+    Relay ICE candidate to private room partner.
+    Payload: { candidate: dict }
+    """
+    sid = request.sid
+    valid, error_code, partner_sid, room_id = validate_private_call_context(sid)
+    if not valid or not isinstance(data, dict):
+        return
+
+    candidate = data.get("candidate")
+    if candidate:
+        emit(
+            "webrtc_ice_candidate",
+            {
+                "candidate": candidate,
+                "senderSid": sid,
+            },
+            to=partner_sid,
+        )
+
+
+@socketio.on("end_call")
+def handle_end_call(data=None):
+    """
+    Terminate active call and signal partner.
+    Payload: { reason: "hangup" }
+    """
+    sid = request.sid
+    room_id = room_manager.get_room_for_sid(sid)
+    if room_id:
+        partner_sid = room_manager.get_partner_sid(room_id, sid)
+        if partner_sid:
+            reason = data.get("reason", "hangup") if isinstance(data, dict) else "hangup"
+            emit("call_ended", {"reason": reason}, to=partner_sid)
