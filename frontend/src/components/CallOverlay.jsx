@@ -15,7 +15,9 @@ import {
   Wifi,
   AlertCircle,
   X,
+  ShieldCheck,
 } from "lucide-react";
+import PermissionModal from "./PermissionModal";
 
 function formatDuration(seconds) {
   const mins = Math.floor(seconds / 60);
@@ -36,6 +38,10 @@ export default function CallOverlay({
   localStream,
   remoteStream,
   partnerAlias = "Friend",
+  showPermissionModal = false,
+  targetPermissionType = "voice",
+  micPermission = "prompt",
+  cameraPermission = "prompt",
   onAccept,
   onReject,
   onEndCall,
@@ -43,6 +49,9 @@ export default function CallOverlay({
   onToggleVideo,
   onToggleMinimize,
   onClearError,
+  onOpenPermissionModal,
+  onClosePermissionModal,
+  onRequestPermission,
 }) {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -76,19 +85,29 @@ export default function CallOverlay({
       {/* Hidden remote audio element for reliable voice playback */}
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
-      {/* 1. Permission or Call Error Toast */}
+      {/* 1. Permission or Call Error Toast with 1-Tap Allow Action */}
       {errorMessage && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] p-3.5 rounded-2xl bg-rose-950/95 border border-rose-500/50 shadow-2xl backdrop-blur-xl text-rose-200 text-xs flex items-center justify-between gap-3 animate-fade-in select-none">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span className="leading-snug">{errorMessage}</span>
+            <span className="leading-snug truncate sm:whitespace-normal">{errorMessage}</span>
           </div>
-          <button
-            onClick={onClearError}
-            className="p-1 rounded-lg text-rose-400 hover:text-white hover:bg-rose-900/50 transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onOpenPermissionModal && (
+              <button
+                onClick={() => onOpenPermissionModal("voice")}
+                className="px-2.5 py-1 rounded-xl bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-slate-950 font-bold text-[11px] shadow-sm transition-all cursor-pointer whitespace-nowrap"
+              >
+                Allow Access
+              </button>
+            )}
+            <button
+              onClick={onClearError}
+              className="p-1 rounded-lg text-rose-400 hover:text-white hover:bg-rose-900/50 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -120,13 +139,21 @@ export default function CallOverlay({
               Incoming {incomingCall.callType === "video" ? "Video Call" : "Voice Call"}...
             </p>
 
+            {/* Clear Browser Permission Tip so users expect the Allow button */}
+            <div className="mt-4 p-2.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 text-left flex items-start gap-2 text-[11px] text-cyan-200">
+              <Mic className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+              <span>
+                Tap <strong>Allow</strong> when your browser asks for {incomingCall.callType === "video" ? "camera & microphone" : "microphone"} permission.
+              </span>
+            </div>
+
             <div className="mt-2 text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
               <Lock className="w-3 h-3 text-emerald-400" />
               <span>Peer-to-Peer Encrypted • Zero Logs</span>
             </div>
 
             {/* Action Buttons */}
-            <div className="mt-7 flex items-center justify-center gap-5">
+            <div className="mt-6 flex items-center justify-center gap-5">
               {/* Decline Button */}
               <button
                 onClick={() => onReject("declined")}
@@ -269,7 +296,10 @@ export default function CallOverlay({
             {/* Ambient Sound Equalizer Ring */}
             <div className="relative w-28 h-28 mx-auto mb-6 flex items-center justify-center">
               <span className="absolute inset-0 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/20 animate-pulse"></span>
-              <span className="absolute -inset-3 rounded-full border border-cyan-500/30 animate-spin opacity-40" style={{ animationDuration: "12s" }}></span>
+              <span
+                className="absolute -inset-3 rounded-full border border-cyan-500/30 animate-spin opacity-40"
+                style={{ animationDuration: "12s" }}
+              ></span>
               <div className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-2xl">
                 <Phone className="w-10 h-10" />
               </div>
@@ -422,6 +452,16 @@ export default function CallOverlay({
           </div>
         </div>
       )}
+
+      {/* 7. Permission Guide Modal */}
+      <PermissionModal
+        isOpen={showPermissionModal}
+        onClose={onClosePermissionModal}
+        onRequestPermission={onRequestPermission}
+        micPermission={micPermission}
+        cameraPermission={cameraPermission}
+        targetType={targetPermissionType}
+      />
     </>
   );
 }

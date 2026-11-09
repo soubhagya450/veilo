@@ -14,6 +14,7 @@ const RTC_CONFIG = {
 
 /**
  * WebRTC 1-to-1 Voice & Video Call hook for private rooms.
+ * Includes intelligent permission handling, pre-flight checks, and graceful fallbacks.
  */
 export function useWebRTC({ enabled = false, isConnected = false, partnerAlias = "Friend" } = {}) {
   // Call status: 'idle' | 'calling' | 'incoming' | 'connecting' | 'connected' | 'ended'
@@ -27,6 +28,12 @@ export function useWebRTC({ enabled = false, isConnected = false, partnerAlias =
   const [errorMessage, setErrorMessage] = useState(null);
   const [isMinimized, setIsMinimized] = useState(false);
 
+  // Permission states: 'prompt' | 'granted' | 'denied' | 'unknown'
+  const [micPermission, setMicPermission] = useState("prompt");
+  const [cameraPermission, setCameraPermission] = useState("prompt");
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [targetPermissionType, setTargetPermissionType] = useState("voice");
+
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
 
@@ -36,6 +43,34 @@ export function useWebRTC({ enabled = false, isConnected = false, partnerAlias =
   const iceCandidatesQueueRef = useRef([]);
   const timerRef = useRef(null);
   const audioRingRef = useRef(null);
+
+  // Detect initial permission status if browser supports Permissions API
+  useEffect(() => {
+    if (!enabled) return;
+    if (typeof navigator !== "undefined" && navigator.permissions && navigator.permissions.query) {
+      try {
+        navigator.permissions
+          .query({ name: "microphone" })
+          .then((perm) => {
+            setMicPermission(perm.state);
+            perm.onchange = () => {
+              setMicPermission(perm.state);
+            };
+          })
+          .catch(() => {});
+
+        navigator.permissions
+          .query({ name: "camera" })
+          .then((perm) => {
+            setCameraPermission(perm.state);
+            perm.onchange = () => {
+              setCameraPermission(perm.state);
+            };
+          })
+          .catch(() => {});
+      } catch {}
+    }
+  }, [enabled]);
 
   // Synthesize call ringing and tone effects using Web Audio API
   const playTone = useCallback((type) => {
@@ -193,30 +228,65 @@ export function useWebRTC({ enabled = false, isConnected = false, partnerAlias =
     setIncomingCall(null);
   }, [stopAudioTone, stopStream]);
 
-  // Request user media (audio only for voice, audio+video for video)
+  // Request user media with video -> audio fallback
   const getUserMediaStream = useCallback(async (type) => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       throw new Error("Camera and microphone access requires HTTPS or localhost.");
     }
 
-    const constraints = {
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-      video:
-        type === "video"
-          ? {
-              width: { ideal: 1280, max: 1920 },
-              height: { ideal: 720, max: 1080 },
-              facingMode: "user",
-            }
-          : false,
+    const audioConstraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
     };
 
-    return await navigator.mediaDevices.getUserMedia(constraints);
+    if (type === "video") {
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints,
+          video: {
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            facingMode: "user",
+          },
+        });
+      } catch (videoErr) {
+        console.warn("Video capture failed, attempting audio fallback:", videoErr);
+        // If camera failed due to device constraint or in-use, try audio only
+        return await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints,
+          video: false,
+        });
+      }
+    }
+
+    return await navigator.mediaDevices.getUserMedia({
+      audio: audioConstraints,
+      video: false,
+    });
   }, []);
+
+  // Standalone permission tester / requester for the PermissionModal
+  const requestPermission = useCallback(
+    async (type = "voice") => {
+      try {
+        const stream = await getUserMediaStream(type);
+        setMicPermission("granted");
+        if (type === "video") {
+          setCameraPermission("granted");
+        }
+        stopStream(stream);
+        return true;
+      } catch (err) {
+        console.error("Manual permission request error:", err);
+        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+          setMicPermission("denied");
+        }
+        return false;
+      }
+    },
+    [getUserMediaStream, stopStream]
+  );
 
   // Initialize and configure RTCPeerConnection
   const createPeerConnection = useCallback(() => {
@@ -306,18 +376,22 @@ export function useWebRTC({ enabled = false, isConnected = false, partnerAlias =
         const stream = await getUserMediaStream(type);
         localStreamRef.current = stream;
         setLocalStream(stream);
+        setMicPermission("granted");
 
         // Tell server to notify partner
         socket.emit("call_initiate", { callType: type });
         playTone("ringing");
       } catch (err) {
-        console.error("Media permission error:", err);
+        console.error("Media permission error on startCall:", err);
         setCallStatus("idle");
         stopAudioTone();
         if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-          setErrorMessage("Permission denied. Please grant microphone and camera permissions in your browser.");
+          setMicPermission("denied");
+          setTargetPermissionType(type);
+          setShowPermissionModal(true);
+          setErrorMessage("Microphone access is blocked. Please tap 'Allow' in your browser permissions.");
         } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-          setErrorMessage("No microphone or camera detected on your device.");
+          setErrorMessage("No microphone or camera was found on your device.");
         } else {
           setErrorMessage(err.message || "Failed to start call.");
         }
@@ -340,6 +414,7 @@ export function useWebRTC({ enabled = false, isConnected = false, partnerAlias =
       const stream = await getUserMediaStream(type);
       localStreamRef.current = stream;
       setLocalStream(stream);
+      setMicPermission("granted");
 
       const pc = createPeerConnection();
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -351,7 +426,15 @@ export function useWebRTC({ enabled = false, isConnected = false, partnerAlias =
       socket.emit("call_reject", { reason: "permission_denied" });
       cleanupCall();
       setCallStatus("idle");
-      setErrorMessage("Permission denied. Could not access microphone or camera.");
+
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setMicPermission("denied");
+        setTargetPermissionType(type);
+        setShowPermissionModal(true);
+        setErrorMessage("Microphone access is needed to accept the call. Please allow access.");
+      } else {
+        setErrorMessage("Could not connect audio/video: " + (err.message || "Device error"));
+      }
     }
   }, [incomingCall, stopAudioTone, getUserMediaStream, createPeerConnection, cleanupCall]);
 
@@ -425,7 +508,7 @@ export function useWebRTC({ enabled = false, isConnected = false, partnerAlias =
     };
 
     // Caller acknowledges that callee phone is ringing
-    const handleCallRinging = (data) => {
+    const handleCallRinging = () => {
       setConnectionStatus("Ringing...");
     };
 
@@ -508,25 +591,27 @@ export function useWebRTC({ enabled = false, isConnected = false, partnerAlias =
       }
     };
 
-    // Partner declined or cancelled
+    // Partner declined, cancelled, or had permission error
     const handleCallRejected = (data) => {
       stopAudioTone();
       playTone("ended");
       cleanupCall();
       setCallStatus("ended");
       const reason = data.reason || "declined";
-      if (reason === "busy") {
+      if (reason === "permission_denied") {
+        setErrorMessage("Partner could not grant microphone permission on their device.");
+      } else if (reason === "busy") {
         setErrorMessage("Partner is currently busy on another call.");
       } else {
         setErrorMessage("Call declined.");
       }
       setTimeout(() => {
         setCallStatus("idle");
-      }, 2000);
+      }, 2500);
     };
 
     // Partner ended call or left room
-    const handleCallEnded = (data) => {
+    const handleCallEnded = () => {
       stopAudioTone();
       playTone("ended");
       cleanupCall();
@@ -585,6 +670,10 @@ export function useWebRTC({ enabled = false, isConnected = false, partnerAlias =
     connectionStatus,
     errorMessage,
     isMinimized,
+    micPermission,
+    cameraPermission,
+    showPermissionModal,
+    targetPermissionType,
     localStream,
     remoteStream,
     startCall,
@@ -594,6 +683,12 @@ export function useWebRTC({ enabled = false, isConnected = false, partnerAlias =
     toggleMute,
     toggleVideo,
     toggleMinimize,
+    requestPermission,
+    openPermissionModal: (type = "voice") => {
+      setTargetPermissionType(type);
+      setShowPermissionModal(true);
+    },
+    closePermissionModal: () => setShowPermissionModal(false),
     clearError: () => setErrorMessage(null),
   };
 }

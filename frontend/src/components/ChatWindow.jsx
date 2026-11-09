@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { Shield, Lock, Phone, Video, ChevronDown, User, AlertCircle, RefreshCw, ShieldCheck, KeyRound, Eye, EyeOff, FlaskConical, LogOut } from "lucide-react";
+import { Shield, Lock, Phone, Video, Mic, ChevronDown, User, AlertCircle, RefreshCw, ShieldCheck, KeyRound, Eye, EyeOff, FlaskConical, LogOut } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import MessageInput from "./MessageInput";
 import TypingIndicator from "./TypingIndicator";
@@ -51,6 +51,10 @@ export default function ChatWindow({
     connectionStatus: callConnectionStatus,
     errorMessage: callError,
     isMinimized: isCallMinimized,
+    micPermission,
+    cameraPermission,
+    showPermissionModal,
+    targetPermissionType,
     localStream,
     remoteStream,
     startCall,
@@ -60,6 +64,9 @@ export default function ChatWindow({
     toggleMute,
     toggleVideo,
     toggleMinimize: toggleCallMinimize,
+    requestPermission,
+    openPermissionModal,
+    closePermissionModal,
     clearError: clearCallError,
   } = useWebRTC({
     enabled: isPrivate,
@@ -257,6 +264,24 @@ export default function ChatWindow({
                 <Video className="w-3.5 h-3.5 text-fuchsia-400" />
                 <span className="hidden sm:inline">Video</span>
               </button>
+
+              {/* One-Tap Microphone Permission Helper */}
+              <button
+                onClick={() => openPermissionModal("voice")}
+                title={
+                  micPermission === "granted"
+                    ? "Microphone access allowed & ready"
+                    : "Tap to allow Microphone & Camera access"
+                }
+                className={`hidden xs:inline-flex items-center gap-1 px-2 py-1.5 rounded-xl border text-[11px] font-mono transition-all active:scale-95 cursor-pointer ${
+                  micPermission === "granted"
+                    ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20"
+                    : "bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25 animate-pulse"
+                }`}
+              >
+                <Mic className="w-3 h-3" />
+                <span className="hidden md:inline">{micPermission === "granted" ? "Mic Ready" : "Allow Mic"}</span>
+              </button>
             </div>
           )}
 
@@ -445,6 +470,10 @@ export default function ChatWindow({
           localStream={localStream}
           remoteStream={remoteStream}
           partnerAlias={partnerAlias || "Friend"}
+          showPermissionModal={showPermissionModal}
+          targetPermissionType={targetPermissionType}
+          micPermission={micPermission}
+          cameraPermission={cameraPermission}
           onAccept={acceptCall}
           onReject={rejectCall}
           onEndCall={endCall}
@@ -452,6 +481,9 @@ export default function ChatWindow({
           onToggleVideo={toggleVideo}
           onToggleMinimize={toggleCallMinimize}
           onClearError={clearCallError}
+          onOpenPermissionModal={openPermissionModal}
+          onClosePermissionModal={closePermissionModal}
+          onRequestPermission={requestPermission}
         />
       )}
 
