@@ -11,8 +11,8 @@ logger = logging.getLogger("veilo")
 socketio = SocketIO(
     cors_allowed_origins="*",
     max_http_buffer_size=10_000,
-    ping_interval=10,
-    ping_timeout=10,
+    ping_interval=20,
+    ping_timeout=25,
     async_mode=None,
 )
 

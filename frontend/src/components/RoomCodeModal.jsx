@@ -11,7 +11,16 @@ export default function RoomCodeModal({ code, onCancel }) {
 
   const handleCopyCode = async () => {
     try {
-      await navigator.clipboard.writeText(code);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = code;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -21,7 +30,16 @@ export default function RoomCodeModal({ code, onCancel }) {
 
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(joinUrl);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(joinUrl);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = joinUrl;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
     } catch {
@@ -33,8 +51,8 @@ export default function RoomCodeModal({ code, onCancel }) {
     if (canShare) {
       try {
         await navigator.share({
-          title: "Join my SayHii private chat",
-          text: `Join my private encrypted chat on SayHii with code: ${code}\nLink: ${joinUrl}`,
+          title: "SayHii Private Chat",
+          text: `Join my private encrypted chat on SayHii (Room Code: ${code}):`,
           url: joinUrl,
         });
       } catch (err) {

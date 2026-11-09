@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { KeyRound, ArrowRight, ShieldCheck, AlertCircle } from "lucide-react";
+import { KeyRound, ArrowRight, ShieldCheck, AlertCircle, RefreshCw, Lock } from "lucide-react";
 import { useChat } from "../hooks/useChat";
 import { validateRoomCode as checkCodeApi } from "../services/api";
 import { VeiloIcon } from "../components/VeiloLogo";
@@ -8,11 +8,13 @@ import ChatWindow from "../components/ChatWindow";
 
 export default function JoinRoom() {
   const [searchParams] = useSearchParams();
-  const initialCode = searchParams.get("code") || "";
+  const rawQueryCode = searchParams.get("code") || "";
+  const initialCode = rawQueryCode.trim().toUpperCase().replace(/[^A-Z2-9]/g, "");
 
-  const [code, setCode] = useState(initialCode.toUpperCase());
+  const [code, setCode] = useState(initialCode);
   const [localError, setLocalError] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
+  const autoJoinAttemptedRef = useRef(false);
 
   const {
     chatStatus,
@@ -31,12 +33,16 @@ export default function JoinRoom() {
     reportPartner,
   } = useChat();
 
-  // Handle URL query code prefill
+  // If a valid 8-character code is provided in the URL, automatically initiate join!
   useEffect(() => {
-    if (initialCode && initialCode.length === 8) {
-      setCode(initialCode.toUpperCase());
+    if (initialCode && initialCode.length === 8 && !autoJoinAttemptedRef.current) {
+      autoJoinAttemptedRef.current = true;
+      setCode(initialCode);
+      setLocalError(null);
+      // Auto-join via real-time socket
+      joinPrivateRoom(initialCode);
     }
-  }, [initialCode]);
+  }, [initialCode, joinPrivateRoom]);
 
   const handleCodeChange = (e) => {
     const val = e.target.value.toUpperCase().replace(/[^A-Z2-9]/g, "");
@@ -48,7 +54,8 @@ export default function JoinRoom() {
 
   const handleJoin = async (e) => {
     e?.preventDefault();
-    if (code.length !== 8) {
+    const cleanCode = code.trim().toUpperCase().replace(/[^A-Z2-9]/g, "");
+    if (cleanCode.length !== 8) {
       setLocalError("Please enter an 8-character room code.");
       return;
     }
@@ -56,17 +63,26 @@ export default function JoinRoom() {
     setIsValidating(true);
     setLocalError(null);
 
-    // Pre-check code via REST API
-    const res = await checkCodeApi(code);
-    setIsValidating(false);
-
-    if (!res.available) {
-      setLocalError(res.message || "Room is invalid or unavailable.");
-      return;
+    // Optional pre-check without blocking on cold start
+    try {
+      const res = await checkCodeApi(cleanCode);
+      if (res && res.valid === false) {
+        setIsValidating(false);
+        setLocalError(res.message || "Invalid room code format.");
+        return;
+      }
+      if (res && res.available === false && res.status === 409) {
+        setIsValidating(false);
+        setLocalError(res.message || "This room is already full (2 participants).");
+        return;
+      }
+    } catch {
+      // Proceed to authoritative socket validation
     }
 
-    // Join room via Socket.IO
-    joinPrivateRoom(code);
+    setIsValidating(false);
+    // Join room via real-time Socket.IO
+    joinPrivateRoom(cleanCode);
   };
 
   // If connected or partner left, render ChatWindow
@@ -90,6 +106,13 @@ export default function JoinRoom() {
     );
   }
 
+  // Connecting state when joining via share link
+  const isAutoConnecting =
+    initialCode.length === 8 &&
+    !errorMessage &&
+    !localError &&
+    (chatStatus === "idle" || isValidating);
+
   return (
     <div className="min-h-[calc(100dvh-4rem)] flex items-center justify-center p-3.5 sm:p-4">
       <div className="max-w-md w-full p-6 sm:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 text-center shadow-2xl backdrop-blur-xl">
@@ -99,8 +122,17 @@ export default function JoinRoom() {
 
         <h2 className="text-xl sm:text-2xl font-bold text-slate-100 mb-2">Join Private Room</h2>
         <p className="text-xs text-slate-400 max-w-sm mx-auto mb-6 sm:mb-8 leading-relaxed">
-          Enter the 8-character code shared by your friend to join their private conversation.
+          {initialCode.length === 8
+            ? "Connecting you directly to your friend's private conversation."
+            : "Enter the 8-character code shared by your friend to join their private conversation."}
         </p>
+
+        {isAutoConnecting && (
+          <div className="mb-6 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs flex items-center justify-center gap-2.5 animate-pulse">
+            <RefreshCw className="w-4 h-4 animate-spin text-cyan-400 shrink-0" />
+            <span>Connecting to room <strong>{code}</strong>...</span>
+          </div>
+        )}
 
         <form onSubmit={handleJoin} className="space-y-4">
           <div>
@@ -120,7 +152,7 @@ export default function JoinRoom() {
           </div>
 
           {(localError || errorMessage) && (
-            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 text-left">
+            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 text-left animate-fade-in">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
               <span>{localError || errorMessage}</span>
             </div>
@@ -132,7 +164,10 @@ export default function JoinRoom() {
             className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-98 text-white font-bold text-sm shadow-xl shadow-cyan-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
           >
             {isValidating ? (
-              <span>Validating Code...</span>
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Connecting to Room...</span>
+              </>
             ) : (
               <>
                 <span>Enter Private Room</span>

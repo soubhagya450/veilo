@@ -21,24 +21,18 @@ export function useChat() {
     chatStatusRef.current = chatStatus;
   }, [roomId, chatStatus]);
 
-  // Clean exit: when user navigates away or closes tab during active chat, immediately notify partner
+  // Clean exit: when user closes tab or browser during active chat, notify partner
   useEffect(() => {
     const handleLeaveOnExit = () => {
-      if (chatStatusRef.current === "connected" || roomIdRef.current) {
+      if (chatStatusRef.current === "connected") {
         socket.emit("leave_chat");
       }
     };
 
     window.addEventListener("beforeunload", handleLeaveOnExit);
-    window.addEventListener("pagehide", handleLeaveOnExit);
 
     return () => {
       window.removeEventListener("beforeunload", handleLeaveOnExit);
-      window.removeEventListener("pagehide", handleLeaveOnExit);
-      if (chatStatusRef.current === "connected" || chatStatusRef.current === "searching") {
-        socket.emit("leave_chat");
-        sessionStorage.removeItem("veilo_active_room");
-      }
     };
   }, []);
 
@@ -247,6 +241,12 @@ export function useChat() {
 
     function onPartnerBack(data) {
       // Partner returned and re-attached!
+      if (data?.partnerAlias) {
+        setPartnerAlias(data.partnerAlias);
+      }
+      setChatStatus("connected");
+      setIsPartnerTyping(false);
+      setErrorMessage(null);
       setMessages((prev) => [
         ...prev,
         {

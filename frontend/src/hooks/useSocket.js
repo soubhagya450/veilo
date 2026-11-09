@@ -34,6 +34,7 @@ export function useSocket() {
       if (data?.token) {
         setSessionToken(data.token);
         sessionStorage.setItem("veilo_token", data.token);
+        socket.auth = { token: data.token };
       }
     }
 
@@ -60,6 +61,9 @@ export function useSocket() {
     if (!socket.connected) {
       setIsConnecting(true);
       const token = sessionStorage.getItem("veilo_token");
+      if (token) {
+        socket.auth = { token };
+      }
       connectSocket(token);
     }
   }, []);
